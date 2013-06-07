@@ -19,8 +19,8 @@ import Distribution.Text
 
 optParser =
   (,,)
-    <$> many (strOption (long "package-db" <> metavar "DB-PATH"))
-    <*> strOption (short 'o' <> metavar "OUTPUT-PATH")
+    <$> many (strOption (long "package-db" <> metavar "DB-PATH" <> help "Additional package database"))
+    <*> strOption (short 'o' <> metavar "OUTPUT-PATH" <> help "Directory where html files will be placed")
     <*> many (argument str (metavar "PACKAGE-PATH"))
 
 getPackageNames
