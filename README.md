@@ -39,3 +39,16 @@ For example:
 system with documentation (even those dependencies that themselves belong to the
 current package set). If they are installed in a non-standard package database
 (e.g. if you use sandboxes), use the `--package-db` option.
+
+## Cabal dependency
+
+The program only builds with (unreleased) Cabal 1.17 which you can get from
+[github](https://github.com/haskell/cabal).
+
+I spent some time trying to make it compatible with Cabal 1.16 (see
+[Cabal-1.16][] branch), but the API seems to have changed too much.
+
+If you seriously care about this, feel free to send a patch, but it's really
+easier to just install Cabal HEAD.
+
+[Cabal-1.16]: https://github.com/feuerbach/standalone-haddock/tree/Cabal-1.16
