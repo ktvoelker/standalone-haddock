@@ -4,6 +4,7 @@ import Cabal.Haddock
 import qualified Data.Set as Set
 import Text.Printf
 import System.Directory
+import System.FilePath
 import Data.Foldable (forM_)
 
 import Distribution.Simple.Compiler hiding (Flag)
@@ -34,7 +35,7 @@ getPackageNames
   -> IO [PackageName] -- ^ package names
 getPackageNames = mapM $ \dir -> do
   cabalFile <- findPackageDesc dir
-  desc <- readPackageDescription silent cabalFile
+  desc <- readPackageDescription normal cabalFile
   let
     name = pkgName . package . packageDescription $ desc
   return name
@@ -47,8 +48,7 @@ computePath names =
 
   if pkgName pkgId `Set.member` pkgSet
     then
-      printf "../%s"
-        (display $ pkgName pkgId)
+      ".." </> (display $ pkgName pkgId)
     else
       printf "http://hackage.haskell.org/packages/archive/%s/%s/doc/html"
         (display $ pkgName pkgId)
@@ -75,8 +75,18 @@ main = do
       defaultHaddockFlags 
         { haddockDistPref = Distribution.Simple.Setup.Flag dest }
 
+  -- generate docs for every package
   forM_ pkgDirs $ \dir -> do
     setCurrentDirectory dir
 
     lbi <- configureAction simpleUserHooks configFlags []
     haddockAction lbi simpleUserHooks haddockFlags [] (computePath pkgNames)
+
+  -- generate documentation index
+  regenerateHaddockIndex normal defaultProgramConfiguration dest
+    [(iface, html)
+    | pkg <- pkgNames
+    , let pkgStr = display pkg
+          html = pkgStr
+          iface = dest </> pkgStr </> pkgStr <.> "haddock"
+    ]

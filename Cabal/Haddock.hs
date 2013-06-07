@@ -1,4 +1,4 @@
--- Code copied or derived from Distribution.Simple.Haddock.
+-- Code copied or derived from Distribution.Simple.Haddock and Distribution.Client.Haddock.
 
 -- We modify functions to accept a hook (PackageId -> FilePath) instead of
 -- a template to compute the final html path of the package documentation
@@ -41,6 +41,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 module Cabal.Haddock
   ( haddock
   , hscolour
+  , regenerateHaddockIndex
   ) where
 
 -- local
@@ -57,9 +58,6 @@ import Distribution.Simple.Compiler
 import Distribution.Simple.GHC ( componentGhcOptions, ghcLibDir )
 import Distribution.Simple.Program.GHC ( GhcOptions(..), renderGhcOptions )
 import Distribution.Simple.Program
-         ( ConfiguredProgram(..), requireProgramVersion
-         , rawSystemProgram, rawSystemProgramStdout
-         , hscolourProgram, haddockProgram )
 import Distribution.Simple.PreProcess (ppCpp', ppUnlit
                                       , PPSuffixHandler, runSimplePreProcessor
                                       , preprocessComponent)
@@ -678,3 +676,23 @@ instance Monoid HaddockArgs where
 instance Monoid Directory where
     mempty = Dir "."
     mappend (Dir m) (Dir n) = Dir $ m </> n
+
+
+regenerateHaddockIndex
+  :: Verbosity
+  -> ProgramConfiguration
+  -> FilePath -- ^ dest dir
+  -> [(FilePath, FilePath)] -- ^ [(interface, html)]
+  -> IO ()
+regenerateHaddockIndex verbosity conf dest paths = do
+      (confHaddock, _, _) <-
+          requireProgramVersion verbosity haddockProgram
+                                    (orLaterVersion (Version [0,6] [])) conf
+
+      let flags = [ "--gen-contents"
+                  , "--gen-index"
+                  , "--odir=" ++ dest
+                  , "--title=Standalone Haskell documentation" ]
+               ++ [ "--read-interface=" ++ html ++ "," ++ interface
+                  | (interface, html) <- paths ]
+      rawSystemProgram verbosity confHaddock flags
