@@ -1,4 +1,5 @@
-# standalone-haddock
+standalone-haddock
+==================
 
 standalone-haddock generates standalone haddock Haskell documentation.
 
@@ -19,7 +20,8 @@ output.
 
 [haskell-suite]: http://haskell-suite.github.io/docs
 
-## Usage
+Usage
+-----
 
     Usage: standalone-haddock [--package-db DB-PATH] -o OUTPUT-PATH [PACKAGE-PATH]
 
@@ -40,7 +42,8 @@ system with documentation (even those dependencies that themselves belong to the
 current package set). If they are installed in a non-standard package database
 (e.g. if you use sandboxes), use the `--package-db` option.
 
-## Cabal dependency
+Cabal dependency
+----------------
 
 The program only builds with (unreleased) Cabal 1.17 which you can get from
 [github](https://github.com/haskell/cabal).
