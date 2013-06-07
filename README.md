@@ -52,6 +52,6 @@ I spent some time trying to make it compatible with Cabal 1.16 (see
 [Cabal-1.16][] branch), but the API seems to have changed too much.
 
 If you seriously care about this, feel free to send a patch, but it's really
-easier to just install Cabal HEAD.
+easier just to install Cabal HEAD.
 
 [Cabal-1.16]: https://github.com/feuerbach/standalone-haddock/tree/Cabal-1.16
