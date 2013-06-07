@@ -13,7 +13,7 @@ documentation. It generates documentation for them with proper links:
 * links to identifiers inside this package set are relative
 * links to identifiers from external packages lead to hackage
 
-Thus the resulting directory with HTML is relocatable and publishable.
+Thus the resulting directory with HTML files is relocatable and publishable.
 
 **TL;DR**: it just works. See the [haskell-suite][] documentation for an example
 output.
