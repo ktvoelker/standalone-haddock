@@ -65,10 +65,7 @@ import Distribution.Simple.Setup
         ( defaultHscolourFlags, Flag(..), toFlag, flagToMaybe, flagToList, fromFlag
         , HaddockFlags(..), HscolourFlags(..) )
 import Distribution.Simple.Build (initialBuildSteps)
-import Distribution.Simple.InstallDirs (InstallDirs(..), PathTemplateEnv, PathTemplate,
-                                        PathTemplateVariable(..),
-                                        toPathTemplate, fromPathTemplate,
-                                        substPathTemplate, initialPathTemplateEnv)
+import Distribution.Simple.InstallDirs
 import Distribution.Simple.LocalBuildInfo
          ( LocalBuildInfo(..), Component(..), ComponentLocalBuildInfo(..)
          , withAllComponentsInBuildOrder )

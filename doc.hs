@@ -8,21 +8,14 @@ import System.FilePath
 import Data.Foldable (forM_)
 
 import Distribution.Simple.Compiler hiding (Flag)
-import Distribution.Simple.UserHooks
 import Distribution.Package --must not specify imports, since we're exporting moule.
 import Distribution.PackageDescription
 import Distribution.PackageDescription.Parse
-import Distribution.PackageDescription.Configuration
 import Distribution.Simple.Program
 import Distribution.Simple.Setup
-import Distribution.Simple.Configure
-import Distribution.Simple.LocalBuildInfo
-import Distribution.Simple.PackageIndex
-import Distribution.Simple.Haddock (haddock, hscolour)
 import Distribution.Simple.Utils hiding (info)
 import Distribution.Verbosity
 import Distribution.Text
-import Distribution.InstalledPackageInfo
 
 optParser =
   (,,)

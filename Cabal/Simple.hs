@@ -41,43 +41,18 @@ module Cabal.Simple
   , simpleUserHooks
   ) where
 
-import Distribution.Simple.Compiler hiding (Flag)
 import Distribution.Simple.UserHooks
 import Distribution.Package --must not specify imports, since we're exporting moule.
 import Distribution.PackageDescription
 import Distribution.PackageDescription.Parse
-import Distribution.PackageDescription.Configuration
 import Distribution.Simple.Program
-import Distribution.Simple.PreProcess (knownSuffixHandlers, PPSuffixHandler)
 import Distribution.Simple.Setup
-import Distribution.Simple.Command
 import Distribution.Simple.Configure
 import Distribution.Simple.LocalBuildInfo
-import Distribution.Simple.PackageIndex
-import Distribution.Simple.Bench (bench)
-import Distribution.Simple.BuildPaths ( srcPref)
-import Distribution.Simple.Test (test)
-import Distribution.Simple.Install (install)
 import Distribution.Simple.Utils
-import Distribution.System
-import Distribution.Verbosity
-import Distribution.InstalledPackageInfo
-import Language.Haskell.Extension
-import Distribution.Version
-import Distribution.Text
-
-import System.Environment(getArgs, getProgName, getEnvironment)
-import System.Directory(removeFile, doesFileExist,
-                        doesDirectoryExist, removeDirectoryRecursive)
-import System.Exit
-
-import Control.Monad   (when)
-import Data.List       (intercalate, unionBy, nub, (\\))
-import Data.Monoid
-import Data.Maybe
 
 -- our version of haddock launcher
-import Cabal.Haddock (haddock, hscolour)
+import Cabal.Haddock
 
 configureAction :: UserHooks -> ConfigFlags -> Args -> IO LocalBuildInfo
 configureAction hooks flags args = do
