@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- Code copied or derived from Distribution.Simple.Haddock and Distribution.Client.Haddock.
 
 -- We modify functions to accept a hook (PackageId -> FilePath) instead of
@@ -65,10 +66,8 @@ import Distribution.Simple.Setup
         ( defaultHscolourFlags, Flag(..), toFlag, flagToMaybe, flagToList, fromFlag
         , HaddockFlags(..), HscolourFlags(..) )
 import Distribution.Simple.Build (initialBuildSteps)
-import Distribution.Simple.InstallDirs
+--import Distribution.Simple.InstallDirs
 import Distribution.Simple.LocalBuildInfo
-         ( LocalBuildInfo(..), Component(..), ComponentLocalBuildInfo(..)
-         , withAllComponentsInBuildOrder )
 import Distribution.Simple.BuildPaths ( haddockName,
                                         hscolourPref, autogenModulesDir,
                                         )
@@ -79,10 +78,7 @@ import qualified Distribution.InstalledPackageInfo as InstalledPackageInfo
 import Distribution.InstalledPackageInfo
          ( InstalledPackageInfo )
 import Distribution.Simple.Utils
-         ( die, copyFileTo, warn, notice, intercalate, setupMessage
-         , createDirectoryIfMissingVerbose, withTempFile, copyFileVerbose
-         , withTempDirectory, matchFileGlob
-         , findFileWithExtension, findFile )
+
 import Distribution.Text
          ( display, simpleParse )
 
@@ -96,10 +92,26 @@ import Control.Exception (assert)
 import Data.Monoid
 import Data.Maybe    ( fromMaybe, listToMaybe )
 
-import System.FilePath((</>), (<.>), splitFileName, splitExtension,
-                       normalise, splitPath, joinPath )
+import System.FilePath
 import System.IO (hClose, hPutStrLn)
 import Distribution.Version
+
+#if !MIN_VERSION_Cabal(1,17,0)
+import Distribution.System (buildPlatform)
+#endif
+
+#if !MIN_VERSION_Cabal(1,17,0)
+withAllComponentsInBuildOrder :: PackageDescription -> LocalBuildInfo
+                              -> (Component -> ComponentLocalBuildInfo -> IO ())
+                              -> IO ()
+withAllComponentsInBuildOrder = withComponentsLBI
+
+copyFileTo :: Verbosity -> FilePath -> FilePath -> IO ()
+copyFileTo verbosity dir file = do
+  let targetFile = dir </> file
+  createDirectoryIfMissingVerbose verbosity True (takeDirectory targetFile)
+  installOrdinaryFile verbosity file targetFile
+#endif
 
 -- Types
 
@@ -209,12 +221,15 @@ haddock pkg_descr lbi suffixes flags computePath = do
             runHaddock verbosity keepTempFiles confHaddock exeArgs'
         _ -> return ()
 
+#if MIN_VERSION_Cabal(1,17,0)
     forM_ (extraHtmlFiles pkg_descr) $ \ fpath -> do
       files <- matchFileGlob fpath
       forM_ files $ copyFileTo verbosity (unDir $ argOutputDir commonArgs)
+#endif
   where
     verbosity     = flag haddockVerbosity
-    keepTempFiles = flag haddockKeepTempFiles
+    -- keepTempFiles = flag haddockKeepTempFiles
+    keepTempFiles = False
     flag f        = fromFlag $ f flags
     htmlTemplate = fmap toPathTemplate . flagToMaybe . haddockHtmlLocation $ flags
 
@@ -518,7 +533,11 @@ haddockPackageFlags lbi clbi computePath = do
 haddockTemplateEnv :: LocalBuildInfo -> PackageIdentifier -> PathTemplateEnv
 haddockTemplateEnv lbi pkg_id = (PrefixVar, prefix (installDirTemplates lbi))
                                 : initialPathTemplateEnv pkg_id (compilerId (compiler lbi))
+#if MIN_VERSION_Cabal(1,17,0)
                                   (hostPlatform lbi)
+#else
+                                  (buildPlatform lbi)
+#endif
 
 -- --------------------------------------------------------------------------
 -- hscolour support
