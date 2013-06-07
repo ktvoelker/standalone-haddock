@@ -18,7 +18,9 @@ cabal-version:       >=1.10
 
 executable standalone-haddock
   main-is:             Main.hs
-  -- other-modules:       
+  other-modules:       
+    Cabal.Haddock
+    Cabal.Simple
   -- other-extensions:    
   build-depends:
     base == 4.*,
