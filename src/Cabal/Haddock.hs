@@ -137,7 +137,7 @@ data Output = Html | Hoogle
 -- Haddock support
 
 haddock :: PackageDescription -> LocalBuildInfo -> [PPSuffixHandler] -> HaddockFlags -> (PackageId -> FilePath) -> IO ()
-haddock pkg_descr _ _ haddockFlags computePath
+haddock pkg_descr _ _ haddockFlags _computePath
   |    not (hasLibs pkg_descr)
     && not (fromFlag $ haddockExecutables haddockFlags) =
       warn (fromFlag $ haddockVerbosity haddockFlags) $
@@ -216,7 +216,7 @@ haddock pkg_descr lbi suffixes flags computePath = do
     verbosity     = flag haddockVerbosity
     keepTempFiles = flag haddockKeepTempFiles
     flag f        = fromFlag $ f flags
-    htmlTemplate = fmap toPathTemplate . flagToMaybe . haddockHtmlLocation $ flags
+    -- htmlTemplate = fmap toPathTemplate . flagToMaybe . haddockHtmlLocation $ flags
 
 -- | performs cpp and unlit preprocessing where needed on the files in
 -- | argTargets, which must have an .hs or .lhs extension.

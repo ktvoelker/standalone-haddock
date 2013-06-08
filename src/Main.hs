@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS -fno-warn-name-shadowing #-}
 import Options.Applicative
 import Cabal.Simple
 import Cabal.Haddock
@@ -17,8 +19,15 @@ import Distribution.Simple.Utils hiding (info)
 import Distribution.Verbosity
 import Distribution.Text
 
+data SHFlags = SHFlags
+    { shPkgDbArgs     :: [String]
+    , shDest          :: String
+    , shPkgDirs       :: [String]
+    }
+
+optParser :: Parser SHFlags
 optParser =
-  (,,)
+  SHFlags
     <$> many (strOption (long "package-db" <> metavar "DB-PATH" <> help "Additional package database"))
     <*> strOption (short 'o' <> metavar "OUTPUT-PATH" <> help "Directory where html files will be placed")
     <*> many (argument str (metavar "PACKAGE-PATH"))
@@ -47,39 +56,40 @@ computePath names =
         (display $ pkgName pkgId)
         (display $ pkgVersion pkgId)
 
+main :: IO ()
 main = do
-  (pkgDbArgs, dest, pkgDirs) <- execParser $
+  SHFlags{..} <- execParser $
     info (helper <*> optParser) idm
 
   -- make all paths absolute, since we'll be changing directories
   -- but first create dest — canonicalizePath will throw an exception if
   -- it's not there
-  createDirectoryIfMissing True {- also parents -} dest
-  dest <- canonicalizePath dest
-  pkgDirs <- mapM canonicalizePath pkgDirs
+  createDirectoryIfMissing True {- also parents -} shDest
+  shDest <- canonicalizePath shDest
+  shPkgDirs <- mapM canonicalizePath shPkgDirs
 
-  pkgNames <- getPackageNames pkgDirs
+  pkgNames <- getPackageNames shPkgDirs
 
   let
     configFlags =
       (defaultConfigFlags defaultProgramConfiguration)
-        { configPackageDBs = map (Just . SpecificPackageDB) pkgDbArgs }
+        { configPackageDBs = map (Just . SpecificPackageDB) shPkgDbArgs }
     haddockFlags =
       defaultHaddockFlags 
-        { haddockDistPref = Distribution.Simple.Setup.Flag dest }
+        { haddockDistPref = Distribution.Simple.Setup.Flag shDest }
 
   -- generate docs for every package
-  forM_ pkgDirs $ \dir -> do
+  forM_ shPkgDirs $ \dir -> do
     setCurrentDirectory dir
 
     lbi <- configureAction simpleUserHooks configFlags []
     haddockAction lbi simpleUserHooks haddockFlags [] (computePath pkgNames)
 
   -- generate documentation index
-  regenerateHaddockIndex normal defaultProgramConfiguration dest
+  regenerateHaddockIndex normal defaultProgramConfiguration shDest
     [(iface, html)
     | pkg <- pkgNames
     , let pkgStr = display pkg
           html = pkgStr
-          iface = dest </> pkgStr </> pkgStr <.> "haddock"
+          iface = shDest </> pkgStr </> pkgStr <.> "haddock"
     ]
