@@ -46,6 +46,7 @@ import Distribution.Package --must not specify imports, since we're exporting mo
 import Distribution.PackageDescription
 import Distribution.PackageDescription.Parse
 import Distribution.Simple.Program
+import Distribution.Simple.PreProcess
 import Distribution.Simple.Setup
 import Distribution.Simple.Configure
 import Distribution.Simple.LocalBuildInfo
@@ -150,7 +151,7 @@ haddockAction lbi _hooks flags _args computePath = do
              (withPrograms lbi)
 
   let pkg_descr = localPkgDescr lbi
-  haddock pkg_descr lbi [] flags computePath
+  haddock pkg_descr lbi knownSuffixHandlers flags computePath
 
 simpleUserHooks :: UserHooks
 simpleUserHooks = emptyUserHooks { confHook  = configure }
