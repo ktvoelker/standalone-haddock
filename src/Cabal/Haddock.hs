@@ -70,7 +70,7 @@ import Distribution.Simple.LocalBuildInfo
          ( LocalBuildInfo(..), Component(..), ComponentLocalBuildInfo(..)
          , withAllComponentsInBuildOrder )
 import Distribution.Simple.BuildPaths ( haddockName,
-                                        hscolourPref, autogenModulesDir,
+                                        autogenModulesDir,
                                         )
 import Distribution.Simple.PackageIndex (dependencyClosure)
 import qualified Distribution.Simple.PackageIndex as PackageIndex
@@ -540,23 +540,33 @@ hscolour' :: PackageDescription
           -> IO ()
 hscolour' pkg_descr lbi suffixes flags = do
     let distPref = fromFlag $ hscolourDistPref flags
+
+    -- Upstream hscolourPref is a function in Distribution.Simple.BuildPaths
+    -- defined as:
+    --
+    --    distPref </> "doc" </> "html" </> display (packageName pkg_descr)
+    --
+    -- However, standalone-haddock does not put the docs in
+    -- <dest>/doc/html/<package-name>, but <dest>/<package-name>.
+    let hscolourPref = distPref </> display (packageName pkg_descr)
+
     (hscolourProg, _, _) <-
       requireProgramVersion
         verbosity hscolourProgram
         (orLaterVersion (Version [1,8] [])) (withPrograms lbi)
 
     setupMessage verbosity "Running hscolour for" (packageId pkg_descr)
-    createDirectoryIfMissingVerbose verbosity True $ hscolourPref distPref pkg_descr
+    createDirectoryIfMissingVerbose verbosity True hscolourPref
 
     let pre c = preprocessComponent pkg_descr c lbi False verbosity suffixes
     withAllComponentsInBuildOrder pkg_descr lbi $ \comp _ -> do
       pre comp
       case comp of
         CLib lib -> do
-          let outputDir = hscolourPref distPref pkg_descr </> "src"
+          let outputDir = hscolourPref </> "src"
           runHsColour hscolourProg outputDir =<< getLibSourceFiles lbi lib
         CExe exe | fromFlag (hscolourExecutables flags) -> do
-          let outputDir = hscolourPref distPref pkg_descr </> exeName exe </> "src"
+          let outputDir = hscolourPref </> exeName exe </> "src"
           runHsColour hscolourProg outputDir =<< getExeSourceFiles lbi exe
         _ -> return ()
   where
@@ -588,6 +598,7 @@ haddockToHscolour flags =
       hscolourVerbosity   = haddockVerbosity   flags,
       hscolourDistPref    = haddockDistPref    flags
     }
+
 ----------------------------------------------------------------------------------------------
 -- TODO these should be moved elsewhere.
 

@@ -15,20 +15,23 @@ import Distribution.PackageDescription
 import Distribution.PackageDescription.Parse
 import Distribution.Simple.Program
 import Distribution.Simple.Setup
+import qualified Distribution.Simple.Setup as Setup
 import Distribution.Simple.Utils hiding (info)
 import Distribution.Verbosity
 import Distribution.Text
 
 data SHFlags = SHFlags
-    { shPkgDbArgs     :: [String]
-    , shDest          :: String
-    , shPkgDirs       :: [String]
+    { shPkgDbArgs       :: [String]
+    , shHyperlinkSource :: Bool
+    , shDest            :: String
+    , shPkgDirs         :: [String]
     }
 
 optParser :: Parser SHFlags
 optParser =
   SHFlags
     <$> many (strOption (long "package-db" <> metavar "DB-PATH" <> help "Additional package database"))
+    <*> switch (long "hyperlink-source" <> help "Generate source links in documentation")
     <*> strOption (short 'o' <> metavar "OUTPUT-PATH" <> help "Directory where html files will be placed")
     <*> many (argument str (metavar "PACKAGE-PATH"))
 
@@ -76,7 +79,9 @@ main = do
         { configPackageDBs = map (Just . SpecificPackageDB) shPkgDbArgs }
     haddockFlags =
       defaultHaddockFlags 
-        { haddockDistPref = Distribution.Simple.Setup.Flag shDest }
+        { haddockDistPref = Setup.Flag shDest
+        , haddockHscolour = Setup.Flag shHyperlinkSource
+        }
 
   -- generate docs for every package
   forM_ shPkgDirs $ \dir -> do
