@@ -140,11 +140,11 @@ sanityCheckHookedBuildInfo pkg_descr (_, hookExes)
 sanityCheckHookedBuildInfo _ _ = return ()
 -}
 haddockAction :: LocalBuildInfo -> UserHooks -> HaddockFlags -> Args -> (PackageId -> FilePath) -> IO ()
-haddockAction lbi hooks flags args computePath = do
-  let distPref  = fromFlag $ haddockDistPref flags
-      verbosity = fromFlag $ haddockVerbosity flags
+haddockAction lbi _hooks flags _args computePath = do
+  -- let distPref  = fromFlag $ haddockDistPref flags
+  let verbosity = fromFlag $ haddockVerbosity flags
 
-  progs <- reconfigurePrograms verbosity
+  _progs <- reconfigurePrograms verbosity
              (haddockProgramPaths flags)
              (haddockProgramArgs flags)
              (withPrograms lbi)
