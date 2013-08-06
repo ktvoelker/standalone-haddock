@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                standalone-haddock
-version:             1.1.1
+version:             1.1.2
 synopsis:            Generate standalone haddock documentation for a set of packages
 -- description:         
 homepage:            http://feuerbach.github.io/standalone-haddock
