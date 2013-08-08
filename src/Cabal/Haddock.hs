@@ -80,9 +80,10 @@ import Distribution.InstalledPackageInfo
          ( InstalledPackageInfo )
 import Distribution.Simple.Utils
          ( die, copyFileTo, warn, notice, intercalate, setupMessage
-         , createDirectoryIfMissingVerbose, withTempFile, copyFileVerbose
-         , withTempDirectory, matchFileGlob
-         , findFileWithExtension, findFile )
+         , createDirectoryIfMissingVerbose, withTempFileEx, copyFileVerbose
+         , withTempDirectoryEx, matchFileGlob
+         , findFileWithExtension, findFile
+         , TempFileOptions(..), defaultTempFileOptions )
 import Distribution.Text
          ( display, simpleParse )
 
@@ -193,19 +194,19 @@ haddock pkg_descr lbi suffixes flags computePath = do
       pre comp
       case comp of
         CLib lib -> do
-          withTempDirectory verbosity keepTempFiles (buildDir lbi) "tmp" $ \tmp -> do
+          withTempDirectoryEx verbosity tempFileOpts (buildDir lbi) "tmp" $ \tmp -> do
             let bi = libBuildInfo lib
             libArgs  <- fromLibrary verbosity tmp lbi lib clbi computePath
             libArgs' <- prepareSources verbosity tmp
                           lbi isVersion2 bi (commonArgs `mappend` libArgs)
-            runHaddock verbosity keepTempFiles confHaddock libArgs'
+            runHaddock verbosity tempFileOpts confHaddock libArgs'
         CExe exe -> when (flag haddockExecutables) $ do
-          withTempDirectory verbosity keepTempFiles (buildDir lbi) "tmp" $ \tmp -> do
+          withTempDirectoryEx verbosity tempFileOpts (buildDir lbi) "tmp" $ \tmp -> do
             let bi = buildInfo exe
             exeArgs  <- fromExecutable verbosity tmp lbi exe clbi computePath
             exeArgs' <- prepareSources verbosity tmp
                           lbi isVersion2 bi (commonArgs `mappend` exeArgs)
-            runHaddock verbosity keepTempFiles confHaddock exeArgs'
+            runHaddock verbosity tempFileOpts confHaddock exeArgs'
         _ -> return ()
 
     forM_ (extraHtmlFiles pkg_descr) $ \ fpath -> do
@@ -213,7 +214,8 @@ haddock pkg_descr lbi suffixes flags computePath = do
       forM_ files $ copyFileTo verbosity (unDir $ argOutputDir commonArgs)
   where
     verbosity     = flag haddockVerbosity
-    keepTempFiles = flag haddockKeepTempFiles
+    tempFileOpts  = defaultTempFileOptions
+                    { optKeepTempFiles = flag haddockKeepTempFiles }
     flag f        = fromFlag $ f flags
     -- htmlTemplate = fmap toPathTemplate . flagToMaybe . haddockHtmlLocation $ flags
 
@@ -397,11 +399,11 @@ getGhcLibDir verbosity lbi isVersion2
 ----------------------------------------------------------------------------------------------
 
 -- | Call haddock with the specified arguments.
-runHaddock :: Verbosity -> Bool -> ConfiguredProgram -> HaddockArgs -> IO ()
-runHaddock verbosity keepTempFiles confHaddock args = do
+runHaddock :: Verbosity -> TempFileOptions -> ConfiguredProgram -> HaddockArgs -> IO ()
+runHaddock verbosity tempFileOpts confHaddock args = do
   let haddockVersion = fromMaybe (error "unable to determine haddock version")
                        (programVersion confHaddock)
-  renderArgs verbosity keepTempFiles haddockVersion args $ \(flags,result)-> do
+  renderArgs verbosity tempFileOpts haddockVersion args $ \(flags,result)-> do
 
       rawSystemProgram verbosity confHaddock flags
 
@@ -409,14 +411,14 @@ runHaddock verbosity keepTempFiles confHaddock args = do
 
 
 renderArgs :: Verbosity
-              -> Bool
+              -> TempFileOptions
               -> Version
               -> HaddockArgs
               -> (([String], FilePath) -> IO a)
               -> IO a
-renderArgs verbosity keepTempFiles version args k = do
+renderArgs verbosity tempFileOpts version args k = do
   createDirectoryIfMissingVerbose verbosity True outputDir
-  withTempFile keepTempFiles outputDir "haddock-prolog.txt" $ \prologFileName h -> do
+  withTempFileEx tempFileOpts outputDir "haddock-prolog.txt" $ \prologFileName h -> do
           do
              hPutStrLn h $ fromFlag $ argPrologue args
              hClose h
