@@ -3,6 +3,7 @@
 import Options.Applicative
 import Cabal.Simple
 import Cabal.Haddock
+import Control.Monad hiding (forM_)
 import qualified Data.Set as Set
 import Text.Printf
 import System.Directory
@@ -23,6 +24,7 @@ import Distribution.Text
 data SHFlags = SHFlags
     { shPkgDbArgs       :: [String]
     , shHyperlinkSource :: Bool
+    , shVerbosity       :: Verbosity
     , shDest            :: String
     , shPkgDirs         :: [String]
     }
@@ -32,15 +34,25 @@ optParser =
   SHFlags
     <$> many (strOption (long "package-db" <> metavar "DB-PATH" <> help "Additional package database"))
     <*> switch (long "hyperlink-source" <> help "Generate source links in documentation")
+    <*> nullOption
+      (  long "verbosity"
+      <> short 'v'
+      <> value normal
+      <> metavar "N"
+      <> help "Verbosity (number from 0 to 3)"
+      <> reader (maybe (Left $ ErrorMsg "Bad verbosity") Right . (intToVerbosity <=< readEither)))
     <*> strOption (short 'o' <> metavar "OUTPUT-PATH" <> help "Directory where html files will be placed")
     <*> many (argument str (metavar "PACKAGE-PATH"))
+  where
+    readEither s = case reads s of [(n, "")] -> Just n; _ -> Nothing
 
 getPackageNames
-  :: [FilePath]       -- ^ package directories
+  :: Verbosity
+  -> [FilePath]       -- ^ package directories
   -> IO [PackageName] -- ^ package names
-getPackageNames = mapM $ \dir -> do
+getPackageNames v = mapM $ \dir -> do
   cabalFile <- findPackageDesc dir
-  desc <- readPackageDescription normal cabalFile
+  desc <- readPackageDescription v cabalFile
   let
     name = pkgName . package . packageDescription $ desc
   return name
@@ -71,12 +83,14 @@ main = do
   shDest <- canonicalizePath shDest
   shPkgDirs <- mapM canonicalizePath shPkgDirs
 
-  pkgNames <- getPackageNames shPkgDirs
+  pkgNames <- getPackageNames shVerbosity shPkgDirs
 
   let
     configFlags =
       (defaultConfigFlags defaultProgramConfiguration)
-        { configPackageDBs = map (Just . SpecificPackageDB) shPkgDbArgs }
+        { configPackageDBs = map (Just . SpecificPackageDB) shPkgDbArgs
+        , configVerbosity = Setup.Flag shVerbosity
+        }
     haddockFlags =
       defaultHaddockFlags 
         { haddockDistPref = Setup.Flag shDest
