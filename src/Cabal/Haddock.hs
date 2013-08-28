@@ -56,7 +56,8 @@ import Distribution.PackageDescription as PD
 import Distribution.Simple.Compiler
          ( Compiler(..), compilerVersion )
 import Distribution.Simple.GHC ( componentGhcOptions, ghcLibDir )
-import Distribution.Simple.Program.GHC ( GhcOptions(..), renderGhcOptions )
+import Distribution.Simple.Program.GHC ( GhcOptions(..), GhcDynLinkMode(..)
+                                       , renderGhcOptions )
 import Distribution.Simple.Program
 import Distribution.Simple.PreProcess (ppCpp', ppUnlit
                                       , PPSuffixHandler, runSimplePreProcessor
@@ -209,7 +210,7 @@ haddock pkg_descr lbi suffixes flags computePath = do
             runHaddock verbosity tempFileOpts confHaddock exeArgs'
         _ -> return ()
 
-    forM_ (extraHtmlFiles pkg_descr) $ \ fpath -> do
+    forM_ (extraDocFiles pkg_descr) $ \ fpath -> do
       files <- matchFileGlob fpath
       forM_ files $ copyFileTo verbosity (unDir $ argOutputDir commonArgs)
   where
@@ -272,7 +273,7 @@ fromFlags env flags =
       argCssFile = haddockCss flags,
       argContents = fmap (fromPathTemplate . substPathTemplate env) (haddockContents flags),
       argVerbose = maybe mempty (Any . (>= deafening)) . flagToMaybe $ haddockVerbosity flags,
-      argOutput = 
+      argOutput =
           Flag $ case [ Html | Flag True <- [haddockHtml flags] ] ++
                       [ Hoogle | Flag True <- [haddockHoogle flags] ]
                  of [] -> [ Html ]
@@ -315,11 +316,11 @@ fromLibrary verbosity tmp lbi lib clbi htmlTemplate = do
                           ghcOptStubDir = toFlag tmp
                       }
         sharedOpts = vanillaOpts {
-                         ghcOptDynamic   = toFlag True,
-                         ghcOptFPic      = toFlag True,
-                         ghcOptHiSuffix  = toFlag "dyn_hi",
-                         ghcOptObjSuffix = toFlag "dyn_o",
-                         ghcOptExtra     = ghcSharedOptions bi
+                         ghcOptDynLinkMode = toFlag GhcDynamicOnly,
+                         ghcOptFPic        = toFlag True,
+                         ghcOptHiSuffix    = toFlag "dyn_hi",
+                         ghcOptObjSuffix   = toFlag "dyn_o",
+                         ghcOptExtra       = ghcSharedOptions bi
                      }
     opts <- if withVanillaLib lbi
             then return vanillaOpts
@@ -353,11 +354,11 @@ fromExecutable verbosity tmp lbi exe clbi computePath = do
                           ghcOptStubDir = toFlag tmp
                       }
         sharedOpts = vanillaOpts {
-                         ghcOptDynamic   = toFlag True,
-                         ghcOptFPic      = toFlag True,
-                         ghcOptHiSuffix  = toFlag "dyn_hi",
-                         ghcOptObjSuffix = toFlag "dyn_o",
-                         ghcOptExtra     = ghcSharedOptions bi
+                         ghcOptDynLinkMode = toFlag GhcDynamicOnly,
+                         ghcOptFPic        = toFlag True,
+                         ghcOptHiSuffix    = toFlag "dyn_hi",
+                         ghcOptObjSuffix   = toFlag "dyn_o",
+                         ghcOptExtra       = ghcSharedOptions bi
                      }
     opts <- if withVanillaLib lbi
             then return vanillaOpts
@@ -598,6 +599,8 @@ haddockToHscolour flags =
     HscolourFlags {
       hscolourCSS         = haddockHscolourCss flags,
       hscolourExecutables = haddockExecutables flags,
+      hscolourTestSuites  = haddockTestSuites  flags,
+      hscolourBenchmarks  = haddockBenchmarks  flags,
       hscolourVerbosity   = haddockVerbosity   flags,
       hscolourDistPref    = haddockDistPref    flags
     }
