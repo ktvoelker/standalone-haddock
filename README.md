@@ -39,8 +39,15 @@ For example:
 
 **NOTE**: dependencies of every package need to be already installed in the
 system with documentation (even those dependencies that themselves belong to the
-current package set). If they are installed in a non-standard package database
-(e.g. if you use sandboxes), use the `--package-db` option.
+current package set).
+
+By default, only the global database is read. Other databases can be included
+with the `--package-db` option. For example, to include the standard local
+database:
+
+    standalone-haddock -o doc --package-db $HOME/.ghc/i386-linux-7.6.3/package.conf.d pkg1 pkg2
+
+(replace `i386-linux-7.6.3` with your platform id).
 
 Cabal dependency
 ----------------
