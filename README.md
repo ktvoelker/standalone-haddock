@@ -48,17 +48,3 @@ database:
     standalone-haddock -o doc --package-db $HOME/.ghc/i386-linux-7.6.3/package.conf.d pkg1 pkg2
 
 (replace `i386-linux-7.6.3` with your platform id).
-
-Cabal dependency
-----------------
-
-The program only builds with (unreleased) Cabal 1.17 which you can get from
-[github](https://github.com/haskell/cabal).
-
-I spent some time trying to make it compatible with Cabal 1.16 (see
-[Cabal-1.16][] branch), but the API seems to have changed too much.
-
-If you seriously care about this, feel free to send a patch, but it's really
-easier just to install Cabal HEAD.
-
-[Cabal-1.16]: https://github.com/feuerbach/standalone-haddock/tree/Cabal-1.16
