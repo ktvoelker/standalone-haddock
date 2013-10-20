@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS -fno-warn-name-shadowing #-}
 import Options.Applicative
+import Options.Applicative.Types
 import Cabal.Simple
 import Cabal.Haddock
 import Control.Monad hiding (forM_)
@@ -40,7 +41,7 @@ optParser =
       <> value normal
       <> metavar "N"
       <> help "Verbosity (number from 0 to 3)"
-      <> reader (maybe (Left $ ErrorMsg "Bad verbosity") Right . (intToVerbosity <=< readEither)))
+      <> reader (ReadM . maybe (Left $ ErrorMsg "Bad verbosity") Right . (intToVerbosity <=< readEither)))
     <*> strOption (short 'o' <> metavar "OUTPUT-PATH" <> help "Directory where html files will be placed")
     <*> many (argument str (metavar "PACKAGE-PATH"))
   where
