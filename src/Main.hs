@@ -52,7 +52,7 @@ getPackageNames
   -> [FilePath]       -- ^ package directories
   -> IO [PackageName] -- ^ package names
 getPackageNames v = mapM $ \dir -> do
-  cabalFile <- findPackageDesc dir
+  cabalFile <- either error id <$> findPackageDesc dir
   desc <- readPackageDescription v cabalFile
   let
     name = pkgName . package . packageDescription $ desc

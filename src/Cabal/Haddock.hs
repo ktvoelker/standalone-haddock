@@ -99,7 +99,7 @@ import Data.Monoid
 import Data.Maybe    ( fromMaybe, listToMaybe )
 
 import System.FilePath
-import System.IO (hClose, hPutStrLn)
+import System.IO (hClose, hPutStrLn, hSetEncoding, utf8)
 import Distribution.Version
 
 -- Types
@@ -109,13 +109,13 @@ data HaddockArgs = HaddockArgs {
  argInterfaceFile :: Flag FilePath,               -- ^ path of the interface file, relative to argOutputDir, required.
  argPackageName :: Flag PackageIdentifier,        -- ^ package name,                                         required.
  argHideModules :: (All,[ModuleName.ModuleName]), -- ^ (hide modules ?, modules to hide)
- argIgnoreExports :: Any,                         -- ^ ingore export lists in modules?
- argLinkSource :: Flag (Template,Template),       -- ^ (template for modules, template for symbols)
- argCssFile :: Flag FilePath,                     -- ^ optinal custom css file.
- argContents :: Flag String,                      -- ^ optional url to contents page
+ argIgnoreExports :: Any,                         -- ^ ignore export lists in modules?
+ argLinkSource :: Flag (Template,Template,Template), -- ^ (template for modules, template for symbols, template for lines)
+ argCssFile :: Flag FilePath,                     -- ^ optional custom CSS file.
+ argContents :: Flag String,                      -- ^ optional URL to contents page
  argVerbose :: Any,
- argOutput :: Flag [Output],                      -- ^ Html or Hoogle doc or both?                                   required.
- argInterfaces :: [(FilePath, Maybe FilePath)],   -- ^ [(interface file, path to the html docs for links)]
+ argOutput :: Flag [Output],                      -- ^ HTML or Hoogle doc or both?                                   required.
+ argInterfaces :: [(FilePath, Maybe String)],     -- ^ [(interface file, URL to the HTML docs for links)]
  argOutputDir :: Directory,                       -- ^ where to generate the documentation.
  argTitle :: Flag String,                         -- ^ page's title,                                         required.
  argPrologue :: Flag String,                      -- ^ prologue text,                                        required.
@@ -191,23 +191,23 @@ haddock pkg_descr lbi suffixes flags computePath = do
             , fromPackageDescription pkg_descr ]
 
     let pre c = preprocessComponent pkg_descr c lbi False verbosity suffixes
-    withAllComponentsInBuildOrder pkg_descr lbi $ \comp clbi -> do
-      pre comp
-      case comp of
+    withAllComponentsInBuildOrder pkg_descr lbi $ \component clbi -> do
+      pre component
+      case component of
         CLib lib -> do
           withTempDirectoryEx verbosity tempFileOpts (buildDir lbi) "tmp" $ \tmp -> do
             let bi = libBuildInfo lib
             libArgs  <- fromLibrary verbosity tmp lbi lib clbi computePath
             libArgs' <- prepareSources verbosity tmp
                           lbi isVersion2 bi (commonArgs `mappend` libArgs)
-            runHaddock verbosity tempFileOpts confHaddock libArgs'
+            runHaddock verbosity tempFileOpts comp confHaddock libArgs'
         CExe exe -> when (flag haddockExecutables) $ do
           withTempDirectoryEx verbosity tempFileOpts (buildDir lbi) "tmp" $ \tmp -> do
             let bi = buildInfo exe
             exeArgs  <- fromExecutable verbosity tmp lbi exe clbi computePath
             exeArgs' <- prepareSources verbosity tmp
                           lbi isVersion2 bi (commonArgs `mappend` exeArgs)
-            runHaddock verbosity tempFileOpts confHaddock exeArgs'
+            runHaddock verbosity tempFileOpts comp confHaddock exeArgs'
         _ -> return ()
 
     forM_ (extraDocFiles pkg_descr) $ \ fpath -> do
@@ -218,6 +218,7 @@ haddock pkg_descr lbi suffixes flags computePath = do
     tempFileOpts  = defaultTempFileOptions
                     { optKeepTempFiles = flag haddockKeepTempFiles }
     flag f        = fromFlag $ f flags
+    comp = compiler lbi
     -- htmlTemplate = fmap toPathTemplate . flagToMaybe . haddockHtmlLocation $ flags
 
 -- | performs cpp and unlit preprocessing where needed on the files in
@@ -268,7 +269,8 @@ fromFlags env flags =
       argHideModules = (maybe mempty (All . not) $ flagToMaybe (haddockInternal flags), mempty),
       argLinkSource = if fromFlag (haddockHscolour flags)
                                then Flag ("src/%{MODULE/./-}.html"
-                                         ,"src/%{MODULE/./-}.html#%{NAME}")
+                                         ,"src/%{MODULE/./-}.html#%{NAME}"
+                                         ,"src/%{MODULE/./-}.html#line-%{LINE}")
                                else NoFlag,
       argCssFile = haddockCss flags,
       argContents = fmap (fromPathTemplate . substPathTemplate env) (haddockContents flags),
@@ -399,12 +401,19 @@ getGhcLibDir verbosity lbi isVersion2
 
 ----------------------------------------------------------------------------------------------
 
+-- ------------------------------------------------------------------------------
 -- | Call haddock with the specified arguments.
-runHaddock :: Verbosity -> TempFileOptions -> ConfiguredProgram -> HaddockArgs -> IO ()
-runHaddock verbosity tempFileOpts confHaddock args = do
+runHaddock :: Verbosity
+              -> TempFileOptions
+              -> Compiler
+              -> ConfiguredProgram
+              -> HaddockArgs
+              -> IO ()
+runHaddock verbosity tmpFileOpts comp confHaddock args = do
   let haddockVersion = fromMaybe (error "unable to determine haddock version")
                        (programVersion confHaddock)
-  renderArgs verbosity tempFileOpts haddockVersion args $ \(flags,result)-> do
+  renderArgs verbosity tmpFileOpts haddockVersion comp args $
+    \(flags,result)-> do
 
       rawSystemProgram verbosity confHaddock flags
 
@@ -414,17 +423,19 @@ runHaddock verbosity tempFileOpts confHaddock args = do
 renderArgs :: Verbosity
               -> TempFileOptions
               -> Version
+              -> Compiler
               -> HaddockArgs
               -> (([String], FilePath) -> IO a)
               -> IO a
-renderArgs verbosity tempFileOpts version args k = do
+renderArgs verbosity tmpFileOpts version comp args k = do
   createDirectoryIfMissingVerbose verbosity True outputDir
-  withTempFileEx tempFileOpts outputDir "haddock-prolog.txt" $ \prologFileName h -> do
+  withTempFileEx tmpFileOpts outputDir "haddock-prolog.txt" $ \prologFileName h -> do
           do
+             when (version >= Version [2,15] []) (hSetEncoding h utf8)
              hPutStrLn h $ fromFlag $ argPrologue args
              hClose h
              let pflag = "--prologue=" ++ prologFileName
-             k (pflag : renderPureArgs version args, result)
+             k (pflag : renderPureArgs version comp args, result)
     where
       isVersion2 = version >= Version [2,0] []
       outputDir = (unDir $ argOutputDir args)
@@ -440,8 +451,8 @@ renderArgs verbosity tempFileOpts version args k = do
               pkgid = arg argPackageName
       arg f = fromFlag $ f args
 
-renderPureArgs :: Version -> HaddockArgs -> [String]
-renderPureArgs version args = concat
+renderPureArgs :: Version -> Compiler -> HaddockArgs -> [String]
+renderPureArgs version comp args = concat
     [
      (:[]) . (\f -> "--dump-interface="++ unDir (argOutputDir args) </> f)
      . fromFlag . argInterfaceFile $ args,
@@ -450,8 +461,11 @@ renderPureArgs version args = concat
                   else ["--package=" ++ pname]) . display . fromFlag . argPackageName $ args,
      (\(All b,xs) -> bool (map (("--hide=" ++). display) xs) [] b) . argHideModules $ args,
      bool ["--ignore-all-exports"] [] . getAny . argIgnoreExports $ args,
-     maybe [] (\(m,e) -> ["--source-module=" ++ m
-                         ,"--source-entity=" ++ e]) . flagToMaybe . argLinkSource $ args,
+     maybe [] (\(m,e,l) -> ["--source-module=" ++ m
+                           ,"--source-entity=" ++ e]
+                           ++ if isVersion2_14 then ["--source-entity-line=" ++ l]
+                                               else []
+              ) . flagToMaybe . argLinkSource $ args,
      maybe [] ((:[]).("--css="++)) . flagToMaybe . argCssFile $ args,
      maybe [] ((:[]).("--use-contents="++)) . flagToMaybe . argContents $ args,
      bool [] [verbosityFlag] . getAny . argVerbose $ args,
@@ -461,21 +475,23 @@ renderPureArgs version args = concat
      (:[]).("--title="++) . (bool (++" (internal documentation)") id (getAny $ argIgnoreExports args))
               . fromFlag . argTitle $ args,
      [ "--optghc=" ++ opt | isVersion2
-                          , (opts, ghcVersion) <- flagToList (argGhcOptions args)
-                          , opt <- renderGhcOptions ghcVersion opts ],
+                          , (opts, _ghcVer) <- flagToList (argGhcOptions args)
+                          , opt <- renderGhcOptions comp opts ],
      maybe [] (\l -> ["-B"++l]) $ guard isVersion2 >> flagToMaybe (argGhcLibDir args), -- error if isVersion2 and Nothing?
      argTargets $ args
     ]
     where
       renderInterfaces =
         map (\(i,mh) -> "--read-interface=" ++
-          maybe "" ((++",") . mkUrl) mh ++ i)
+          maybe "" (++",") mh ++ i)
       bool a b c = if c then a else b
-      isVersion2 = version >= Version [2,0] []
-      isVersion2_5 = version >= Version [2,5] []
+      isVersion2    = version >= Version [2,0]  []
+      isVersion2_5  = version >= Version [2,5]  []
+      isVersion2_14 = version >= Version [2,14] []
       verbosityFlag
        | isVersion2_5 = "--verbosity=1"
        | otherwise = "--verbose"
+
 
 -----------------------------------------------------------------------------------------------------------
 
