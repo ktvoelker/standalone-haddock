@@ -3,6 +3,11 @@ standalone-haddock
 
 standalone-haddock generates standalone haddock Haskell documentation.
 
+Note: you need this program to publish haddocks on your own website. If you want
+to upload haddocks to hackage instead, follow [these instructions][for-hackage].
+
+[for-hackage]: http://fuuzetsu.co.uk/blog/posts/2014-01-06-Hackage-documentation-v2.html
+
 When you simply run `cabal haddock`, the resulting HTML documentation contains
 hyperlinks to other packages on your system. As a result, you cannot publish it
 on the internet (well, you can, but the links will be broken).
