@@ -35,13 +35,13 @@ optParser =
   SHFlags
     <$> many (strOption (long "package-db" <> metavar "DB-PATH" <> help "Additional package database"))
     <*> switch (long "hyperlink-source" <> help "Generate source links in documentation")
-    <*> nullOption
+    <*> option ( auto >>= maybe (readerError "Bad verbosity") return . intToVerbosity )
       (  long "verbosity"
       <> short 'v'
       <> value normal
       <> metavar "N"
       <> help "Verbosity (number from 0 to 3)"
-      <> reader (ReadM . maybe (Left $ ErrorMsg "Bad verbosity") Right . (intToVerbosity <=< readEither)))
+        )  
     <*> strOption (short 'o' <> metavar "OUTPUT-PATH" <> help "Directory where html files will be placed")
     <*> many (argument str (metavar "PACKAGE-PATH"))
   where
