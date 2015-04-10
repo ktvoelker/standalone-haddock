@@ -47,6 +47,7 @@ module Cabal.Haddock
 -- local
 import Distribution.Package
          ( PackageIdentifier(..)
+         , PackageKey(..)
          , Package(..)
          , PackageName(..), packageName, PackageId )
 import qualified Distribution.ModuleName as ModuleName
@@ -54,8 +55,8 @@ import Distribution.PackageDescription as PD
          ( PackageDescription(..), BuildInfo(..), allExtensions
          , Library(..), hasLibs, Executable(..) )
 import Distribution.Simple.Compiler
-         ( Compiler(..), compilerVersion )
-import Distribution.Simple.GHC ( componentGhcOptions, ghcLibDir )
+         ( Compiler(..), CompilerFlavor(GHC), compilerInfo, compilerVersion )
+import Distribution.Simple.GHC ( componentGhcOptions, getLibDir )
 import Distribution.Simple.Program.GHC ( GhcOptions(..), GhcDynLinkMode(..)
                                        , renderGhcOptions )
 import Distribution.Simple.Program
@@ -87,6 +88,8 @@ import Distribution.Simple.Utils
          , TempFileOptions(..), defaultTempFileOptions )
 import Distribution.Text
          ( display, simpleParse )
+import Distribution.Utils.NubList
+         ( NubListR(), toNubListR )
 
 import Distribution.Verbosity
 import Language.Haskell.Extension
@@ -185,9 +188,13 @@ haddock pkg_descr lbi suffixes flags computePath = do
          defaultHscolourFlags `mappend` haddockToHscolour flags
 
     libdirArgs <- getGhcLibDir  verbosity lbi isVersion2
+    let pkg_id = packageId pkg_descr
     let commonArgs = mconcat
             [ libdirArgs
-            , fromFlags (haddockTemplateEnv lbi (packageId pkg_descr)) flags
+            -- Is it possible to get an InstalledPackageInfo here?
+            -- If so, it would be better to get the package key from that.
+            -- Using OldPackageKey might not work in all cases.
+            , fromFlags (haddockTemplateEnv lbi pkg_id (OldPackageKey pkg_id)) flags
             , fromPackageDescription pkg_descr ]
 
     let pre c = preprocessComponent pkg_descr c lbi False verbosity suffixes
@@ -300,6 +307,10 @@ fromPackageDescription pkg_descr =
         subtitle | null (synopsis pkg_descr) = ""
                  | otherwise                 = ": " ++ synopsis pkg_descr
 
+ghcSharedOptions :: BuildInfo
+                 -> NubListR String
+ghcSharedOptions = toNubListR . maybe [] id . lookup GHC . sharedOptions
+
 fromLibrary :: Verbosity
             -> FilePath
             -> LocalBuildInfo -> Library -> ComponentLocalBuildInfo
@@ -394,7 +405,7 @@ getGhcLibDir :: Verbosity -> LocalBuildInfo
              -> IO HaddockArgs
 getGhcLibDir verbosity lbi isVersion2
     | isVersion2 =
-        do l <- ghcLibDir verbosity lbi
+        do l <- getLibDir verbosity lbi
            return $ mempty { argGhcLibDir = Flag l }
     | otherwise  =
         return mempty
@@ -535,9 +546,9 @@ haddockPackageFlags lbi clbi computePath = do
       let html = computePath (InstalledPackageInfo.sourcePackageId pkg)
       return (interface, html)
 
-haddockTemplateEnv :: LocalBuildInfo -> PackageIdentifier -> PathTemplateEnv
-haddockTemplateEnv lbi pkg_id = (PrefixVar, prefix (installDirTemplates lbi))
-                                : initialPathTemplateEnv pkg_id (compilerId (compiler lbi))
+haddockTemplateEnv :: LocalBuildInfo -> PackageIdentifier -> PackageKey -> PathTemplateEnv
+haddockTemplateEnv lbi pkg_id pkg_key = (PrefixVar, prefix (installDirTemplates lbi))
+                                : initialPathTemplateEnv pkg_id pkg_key (compilerInfo (compiler lbi))
                                   (hostPlatform lbi)
 
 -- --------------------------------------------------------------------------
