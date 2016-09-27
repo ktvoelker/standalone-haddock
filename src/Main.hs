@@ -5,6 +5,7 @@ import Options.Applicative.Types
 import Cabal.Simple
 import Cabal.Haddock
 import Control.Monad hiding (forM_)
+import Data.Monoid
 import qualified Data.Set as Set
 import Text.Printf
 import System.Directory
