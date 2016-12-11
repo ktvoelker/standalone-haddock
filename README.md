@@ -25,6 +25,12 @@ output.
 
 [haskell-suite]: http://haskell-suite.github.io/docs
 
+Warning
+-------
+
+Using Haddock 2.16.0 (the version which is bundled with GHC 7.10.1) will result
+in broken links in `index.html`. Please use any other version of Haddock.
+
 Usage
 -----
 
