@@ -51,6 +51,7 @@ import Distribution.Simple.Setup
 import Distribution.Simple.Configure
 import Distribution.Simple.LocalBuildInfo
 import Distribution.Simple.Utils
+import Distribution.Verbosity
 
 -- our version of haddock launcher
 import Cabal.Haddock
@@ -83,7 +84,7 @@ configureAction hooks flags args = do
                 postConf hooks args flags pkg_descr localbuildinfo
                 return localbuildinfo
               where
-                verbosity = fromFlag (configVerbosity flags)
+                verbosity = fromFlagOrDefault normal (configVerbosity flags)
                 confPkgDescr :: IO (Maybe FilePath, GenericPackageDescription)
                 confPkgDescr = do
                   mdescr <- readDesc hooks

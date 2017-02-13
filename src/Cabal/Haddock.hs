@@ -47,9 +47,10 @@ module Cabal.Haddock
 -- local
 import Distribution.Package
          ( PackageIdentifier(..)
-         , PackageKey(..)
+         , UnitId(..)
          , Package(..)
-         , PackageName(..), packageName, PackageId )
+         , PackageName(..), packageName, PackageId
+         , mkLegacyUnitId )
 import qualified Distribution.ModuleName as ModuleName
 import Distribution.PackageDescription as PD
          ( PackageDescription(..), BuildInfo(..), allExtensions
@@ -77,7 +78,7 @@ import Distribution.Simple.BuildPaths ( haddockName,
 import Distribution.Simple.PackageIndex (dependencyClosure)
 import qualified Distribution.Simple.PackageIndex as PackageIndex
 import qualified Distribution.InstalledPackageInfo as InstalledPackageInfo
-         ( InstalledPackageInfo_(..) )
+         ( InstalledPackageInfo(..) )
 import Distribution.InstalledPackageInfo
          ( InstalledPackageInfo )
 import Distribution.Simple.Utils
@@ -86,6 +87,7 @@ import Distribution.Simple.Utils
          , withTempDirectoryEx, matchFileGlob
          , findFileWithExtension, findFile
          , TempFileOptions(..), defaultTempFileOptions )
+import Distribution.System (buildPlatform)
 import Distribution.Text
          ( display, simpleParse )
 import Distribution.Utils.NubList
@@ -194,7 +196,7 @@ haddock pkg_descr lbi suffixes flags computePath = do
             -- Is it possible to get an InstalledPackageInfo here?
             -- If so, it would be better to get the package key from that.
             -- Using OldPackageKey might not work in all cases.
-            , fromFlags (haddockTemplateEnv lbi pkg_id (OldPackageKey pkg_id)) flags
+            , fromFlags (haddockTemplateEnv lbi pkg_id (mkLegacyUnitId pkg_id)) flags
             , fromPackageDescription pkg_descr ]
 
     let pre c = preprocessComponent pkg_descr c lbi False verbosity suffixes
@@ -487,7 +489,7 @@ renderPureArgs version comp args = concat
               . fromFlag . argTitle $ args,
      [ "--optghc=" ++ opt | isVersion2
                           , (opts, _ghcVer) <- flagToList (argGhcOptions args)
-                          , opt <- renderGhcOptions comp opts ],
+                          , opt <- renderGhcOptions comp buildPlatform opts ],
      maybe [] (\l -> ["-B"++l]) $ guard isVersion2 >> flagToMaybe (argGhcLibDir args), -- error if isVersion2 and Nothing?
      argTargets $ args
     ]
@@ -546,9 +548,9 @@ haddockPackageFlags lbi clbi computePath = do
       let html = computePath (InstalledPackageInfo.sourcePackageId pkg)
       return (interface, html)
 
-haddockTemplateEnv :: LocalBuildInfo -> PackageIdentifier -> PackageKey -> PathTemplateEnv
-haddockTemplateEnv lbi pkg_id pkg_key = (PrefixVar, prefix (installDirTemplates lbi))
-                                : initialPathTemplateEnv pkg_id pkg_key (compilerInfo (compiler lbi))
+haddockTemplateEnv :: LocalBuildInfo -> PackageIdentifier -> UnitId -> PathTemplateEnv
+haddockTemplateEnv lbi pkg_id unit_id = (PrefixVar, prefix (installDirTemplates lbi))
+                                : initialPathTemplateEnv pkg_id unit_id (compilerInfo (compiler lbi))
                                   (hostPlatform lbi)
 
 -- --------------------------------------------------------------------------
