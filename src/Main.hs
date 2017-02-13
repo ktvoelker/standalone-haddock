@@ -7,6 +7,7 @@ import Data.Monoid
 import qualified Data.Set as Set
 import Text.Printf
 import System.Directory
+import System.Process (readProcess)
 import System.FilePath
 import Data.Foldable (forM_)
 
@@ -83,14 +84,19 @@ main = do
 
   pkgNames <- getPackageNames shVerbosity shPkgDirs
 
+  stackPaths <- readProcess "stack" ["path", "--compiler-exe", "--dist-dir"] []
+
   let
+    [compilerExe, distDir] = map (last . words) (lines stackPaths)
     configFlags =
       (defaultConfigFlags defaultProgramConfiguration)
-        { configPackageDBs = map (Just . SpecificPackageDB) shPkgDbArgs
+        { configPackageDBs = map (Just . SpecificPackageDB) (shPkgDbArgs)
         , configVerbosity = Setup.Flag shVerbosity
+        , configDistPref = Setup.Flag distDir
+        , configHcPath = Setup.Flag compilerExe
         }
     haddockFlags =
-      defaultHaddockFlags 
+      defaultHaddockFlags
         { haddockDistPref = Setup.Flag shDest
         , haddockHscolour = Setup.Flag shHyperlinkSource
         }

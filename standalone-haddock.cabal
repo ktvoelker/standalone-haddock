@@ -27,6 +27,7 @@ executable standalone-haddock
     Cabal >= 1.22,
     filepath,
     directory,
+    process,
     containers,
     optparse-applicative
   hs-source-dirs:      src

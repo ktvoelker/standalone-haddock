@@ -1,6 +1,14 @@
 standalone-haddock
 ==================
 
+**EDIT**: This fork is modified to run using `stack`. To use, go to the directory of your package and enter:
+
+```shell
+standalone-haddock -o docs --package-db=$(stack path --snapshot-pkg-db) --package-db=$(stack path --local-pkg-db) .
+```
+
+---
+
 standalone-haddock generates standalone haddock Haskell documentation.
 
 Note: you need this program to publish haddocks on your own website. If you want
