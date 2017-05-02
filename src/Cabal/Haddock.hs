@@ -47,9 +47,8 @@ module Cabal.Haddock
 -- local
 import Distribution.Package
          ( PackageIdentifier(..)
-         , PackageKey(..)
          , Package(..)
-         , PackageName(..), packageName, PackageId )
+         , PackageName(..), packageName, mkLegacyUnitId, PackageId )
 import qualified Distribution.ModuleName as ModuleName
 import Distribution.PackageDescription as PD
          ( PackageDescription(..), BuildInfo(..), allExtensions
@@ -76,10 +75,8 @@ import Distribution.Simple.BuildPaths ( haddockName,
                                         )
 import Distribution.Simple.PackageIndex (dependencyClosure)
 import qualified Distribution.Simple.PackageIndex as PackageIndex
-import qualified Distribution.InstalledPackageInfo as InstalledPackageInfo
-         ( InstalledPackageInfo_(..) )
 import Distribution.InstalledPackageInfo
-         ( InstalledPackageInfo )
+         ( InstalledPackageInfo, haddockInterfaces, sourcePackageId )
 import Distribution.Simple.Utils
          ( die, copyFileTo, warn, notice, intercalate, setupMessage
          , createDirectoryIfMissingVerbose, withTempFileEx, copyFileVerbose
@@ -195,7 +192,7 @@ haddock pkg_descr lbi suffixes flags computePath = do
             -- Is it possible to get an InstalledPackageInfo here?
             -- If so, it would be better to get the package key from that.
             -- Using OldPackageKey might not work in all cases.
-            , fromFlags (haddockTemplateEnv lbi pkg_id (OldPackageKey pkg_id)) flags
+            , fromFlags (haddockTemplateEnv lbi pkg_id) flags
             , fromPackageDescription pkg_descr ]
 
     let pre c = preprocessComponent pkg_descr c lbi False verbosity suffixes
@@ -543,14 +540,14 @@ haddockPackageFlags lbi clbi computePath = do
     noHaddockWhitelist = map PackageName [ "rts" ]
     interfaceAndHtmlPath :: InstalledPackageInfo -> Maybe (FilePath, FilePath)
     interfaceAndHtmlPath pkg = do
-      interface <- listToMaybe (InstalledPackageInfo.haddockInterfaces pkg)
-      let html = computePath (InstalledPackageInfo.sourcePackageId pkg)
+      interface <- listToMaybe (haddockInterfaces pkg)
+      let html = computePath (sourcePackageId pkg)
       return (interface, html)
 
-haddockTemplateEnv :: LocalBuildInfo -> PackageIdentifier -> PackageKey -> PathTemplateEnv
-haddockTemplateEnv lbi pkg_id pkg_key = (PrefixVar, prefix (installDirTemplates lbi))
-                                : initialPathTemplateEnv pkg_id pkg_key (compilerInfo (compiler lbi))
-                                  (hostPlatform lbi)
+haddockTemplateEnv :: LocalBuildInfo -> PackageIdentifier -> PathTemplateEnv
+haddockTemplateEnv lbi pkg_id = (PrefixVar, prefix (installDirTemplates lbi))
+                         : initialPathTemplateEnv pkg_id (mkLegacyUnitId pkg_id) (compilerInfo (compiler lbi))
+                           (hostPlatform lbi)
 
 -- --------------------------------------------------------------------------
 -- hscolour support
