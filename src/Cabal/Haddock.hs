@@ -86,6 +86,7 @@ import Distribution.Simple.Utils
          , withTempDirectoryEx, matchFileGlob
          , findFileWithExtension, findFile
          , TempFileOptions(..), defaultTempFileOptions )
+import Distribution.System (buildPlatform)
 import Distribution.Text
          ( display, simpleParse )
 import Distribution.Utils.NubList
@@ -487,7 +488,7 @@ renderPureArgs version comp args = concat
               . fromFlag . argTitle $ args,
      [ "--optghc=" ++ opt | isVersion2
                           , (opts, _ghcVer) <- flagToList (argGhcOptions args)
-                          , opt <- renderGhcOptions comp opts ],
+                          , opt <- renderGhcOptions comp buildPlatform opts ],
      maybe [] (\l -> ["-B"++l]) $ guard isVersion2 >> flagToMaybe (argGhcLibDir args), -- error if isVersion2 and Nothing?
      argTargets $ args
     ]
