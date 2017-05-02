@@ -1,10 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS -fno-warn-name-shadowing #-}
 import Options.Applicative
-import Options.Applicative.Types
 import Cabal.Simple
 import Cabal.Haddock
-import Control.Monad hiding (forM_)
 import Data.Monoid
 import qualified Data.Set as Set
 import Text.Printf
@@ -45,8 +43,6 @@ optParser =
         )  
     <*> strOption (short 'o' <> metavar "OUTPUT-PATH" <> help "Directory where html files will be placed")
     <*> many (argument str (metavar "PACKAGE-PATH"))
-  where
-    readEither s = case reads s of [(n, "")] -> Just n; _ -> Nothing
 
 getPackageNames
   :: Verbosity
