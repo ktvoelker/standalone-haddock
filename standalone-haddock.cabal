@@ -24,7 +24,7 @@ executable standalone-haddock
   -- other-extensions:    
   build-depends:
     base == 4.*,
-    Cabal >= 1.22,
+    Cabal >= 1.24,
     filepath,
     directory,
     containers,
