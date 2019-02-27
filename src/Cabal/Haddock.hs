@@ -48,7 +48,7 @@ module Cabal.Haddock
 import Distribution.Package
          ( PackageIdentifier(..)
          , Package(..)
-         , PackageName(..), packageName, mkLegacyUnitId, PackageId )
+         , PackageName(..), mkPackageName, packageName, mkLegacyUnitId, PackageId )
 import qualified Distribution.ModuleName as ModuleName
 import Distribution.PackageDescription as PD
          ( PackageDescription(..), BuildInfo(..), allExtensions
@@ -86,6 +86,7 @@ import Distribution.Simple.Utils
 import Distribution.System (buildPlatform)
 import Distribution.Text
          ( display, simpleParse )
+import Distribution.Types.UnqualComponentName
 import Distribution.Utils.NubList
          ( NubListR(), toNubListR )
 
@@ -151,17 +152,17 @@ haddock pkg_descr lbi suffixes flags computePath = do
     setupMessage verbosity "Running Haddock for" (packageId pkg_descr)
     (confHaddock, version, _) <-
       requireProgramVersion verbosity haddockProgram
-        (orLaterVersion (Version [0,6] [])) (withPrograms lbi)
+        (orLaterVersion (mkVersion [0,6])) (withPrograms lbi)
 
     -- various sanity checks
-    let isVersion2   = version >= Version [2,0] []
+    let isVersion2   = version >= mkVersion [2,0]
 
     when ( flag haddockHoogle
-           && version > Version [2] []
-           && version < Version [2,2] []) $
+           && version > mkVersion [2]
+           && version < mkVersion [2,2]) $
          die "haddock 2.0 and 2.1 do not support the --hoogle flag."
 
-    when (flag haddockHscolour && version < Version [0,8] []) $
+    when (flag haddockHscolour && version < mkVersion [0,8]) $
          die "haddock --hyperlink-source requires Haddock version 0.8 or later"
 
     when isVersion2 $ do
@@ -195,23 +196,22 @@ haddock pkg_descr lbi suffixes flags computePath = do
             , fromFlags (haddockTemplateEnv lbi pkg_id) flags
             , fromPackageDescription pkg_descr ]
 
-    let pre c = preprocessComponent pkg_descr c lbi False verbosity suffixes
     withAllComponentsInBuildOrder pkg_descr lbi $ \component clbi -> do
-      pre component
+      preprocessComponent pkg_descr component lbi clbi False verbosity suffixes
       case component of
         CLib lib -> do
           withTempDirectoryEx verbosity tempFileOpts (buildDir lbi) "tmp" $ \tmp -> do
             let bi = libBuildInfo lib
             libArgs  <- fromLibrary verbosity tmp lbi lib clbi computePath
             libArgs' <- prepareSources verbosity tmp
-                          lbi isVersion2 bi (commonArgs `mappend` libArgs)
+                          lbi clbi isVersion2 bi (commonArgs `mappend` libArgs)
             runHaddock verbosity tempFileOpts comp confHaddock libArgs'
         CExe exe -> when (flag haddockExecutables) $ do
           withTempDirectoryEx verbosity tempFileOpts (buildDir lbi) "tmp" $ \tmp -> do
             let bi = buildInfo exe
             exeArgs  <- fromExecutable verbosity tmp lbi exe clbi computePath
             exeArgs' <- prepareSources verbosity tmp
-                          lbi isVersion2 bi (commonArgs `mappend` exeArgs)
+                          lbi clbi isVersion2 bi (commonArgs `mappend` exeArgs)
             runHaddock verbosity tempFileOpts comp confHaddock exeArgs'
         _ -> return ()
 
@@ -231,11 +231,12 @@ haddock pkg_descr lbi suffixes flags computePath = do
 prepareSources :: Verbosity
                   -> FilePath
                   -> LocalBuildInfo
+                  -> ComponentLocalBuildInfo
                   -> Bool            -- haddock >= 2.0
                   -> BuildInfo
                   -> HaddockArgs
                   -> IO HaddockArgs
-prepareSources verbosity tmp lbi isVersion2 bi args@HaddockArgs{argTargets=files} =
+prepareSources verbosity tmp lbi clbi isVersion2 bi args@HaddockArgs{argTargets=files} =
               mapM (mockPP tmp) files >>= \targets -> return args {argTargets=targets}
           where
             mockPP pref file = do
@@ -251,7 +252,7 @@ prepareSources verbosity tmp lbi isVersion2 bi args@HaddockArgs{argTargets=files
 
                  if needsCpp
                     then do
-                      runSimplePreProcessor (ppCpp' defines bi lbi)
+                      runSimplePreProcessor (ppCpp' defines bi lbi clbi)
                                             file targetFile verbosity
                     else
                       copyFileVerbose verbosity file targetFile
@@ -378,8 +379,8 @@ fromExecutable verbosity tmp lbi exe clbi computePath = do
             else die "Must have vanilla or shared libraries enabled in order to run haddock"
     return ifaceArgs {
       argGhcOptions = toFlag (opts, ghcVersion),
-      argOutputDir  = Dir (exeName exe),
-      argTitle      = Flag (exeName exe),
+      argOutputDir  = Dir (unUnqualComponentName $ exeName exe),
+      argTitle      = Flag (unUnqualComponentName $ exeName exe),
       argTargets    = inFiles
     }
   where
@@ -440,13 +441,13 @@ renderArgs verbosity tmpFileOpts version comp args k = do
   createDirectoryIfMissingVerbose verbosity True outputDir
   withTempFileEx tmpFileOpts outputDir "haddock-prolog.txt" $ \prologFileName h -> do
           do
-             when (version >= Version [2,15] []) (hSetEncoding h utf8)
+             when (version >= mkVersion [2,15]) (hSetEncoding h utf8)
              hPutStrLn h $ fromFlag $ argPrologue args
              hClose h
              let pflag = "--prologue=" ++ prologFileName
              k (pflag : renderPureArgs version comp args, result)
     where
-      isVersion2 = version >= Version [2,0] []
+      isVersion2 = version >= mkVersion [2,0]
       outputDir = (unDir $ argOutputDir args)
       result = intercalate ", "
              . map (\o -> outputDir </>
@@ -494,9 +495,9 @@ renderPureArgs version comp args = concat
         map (\(i,mh) -> "--read-interface=" ++
           maybe "" (++",") mh ++ i)
       bool a b c = if c then a else b
-      isVersion2    = version >= Version [2,0]  []
-      isVersion2_5  = version >= Version [2,5]  []
-      isVersion2_14 = version >= Version [2,14] []
+      isVersion2    = version >= mkVersion [2,0]
+      isVersion2_5  = version >= mkVersion [2,5]
+      isVersion2_14 = version >= mkVersion [2,14]
       verbosityFlag
        | isVersion2_5 = "--verbosity=1"
        | otherwise = "--verbose"
@@ -537,7 +538,7 @@ haddockPackageFlags lbi clbi computePath = do
   return (flags, if null missing then Nothing else Just warning)
 
   where
-    noHaddockWhitelist = map PackageName [ "rts" ]
+    noHaddockWhitelist = map mkPackageName [ "rts" ]
     interfaceAndHtmlPath :: InstalledPackageInfo -> Maybe (FilePath, FilePath)
     interfaceAndHtmlPath pkg = do
       interface <- listToMaybe (haddockInterfaces pkg)
@@ -582,20 +583,19 @@ hscolour' pkg_descr lbi suffixes flags = do
     (hscolourProg, _, _) <-
       requireProgramVersion
         verbosity hscolourProgram
-        (orLaterVersion (Version [1,8] [])) (withPrograms lbi)
+        (orLaterVersion (mkVersion [1,8])) (withPrograms lbi)
 
     setupMessage verbosity "Running hscolour for" (packageId pkg_descr)
     createDirectoryIfMissingVerbose verbosity True hscolourPref
 
-    let pre c = preprocessComponent pkg_descr c lbi False verbosity suffixes
-    withAllComponentsInBuildOrder pkg_descr lbi $ \comp _ -> do
-      pre comp
+    withAllComponentsInBuildOrder pkg_descr lbi $ \comp clbi -> do
+      preprocessComponent pkg_descr comp lbi clbi False verbosity suffixes
       case comp of
         CLib lib -> do
           let outputDir = hscolourPref </> "src"
           runHsColour hscolourProg outputDir =<< getLibSourceFiles lbi lib
         CExe exe | fromFlag (hscolourExecutables flags) -> do
-          let outputDir = hscolourPref </> exeName exe </> "src"
+          let outputDir = hscolourPref </> unUnqualComponentName (exeName exe) </> "src"
           runHsColour hscolourProg outputDir =<< getExeSourceFiles lbi exe
         _ -> return ()
   where
@@ -607,7 +607,7 @@ hscolour' pkg_descr lbi suffixes flags = do
          createDirectoryIfMissingVerbose verbosity True outputDir
 
          case stylesheet of -- copy the CSS file
-           Nothing | programVersion prog >= Just (Version [1,9] []) ->
+           Nothing | programVersion prog >= Just (mkVersion [1,9]) ->
                        rawSystemProgram verbosity prog
                           ["-print-css", "-o" ++ outputDir </> "hscolour.css"]
                    | otherwise -> return ()
@@ -665,7 +665,7 @@ getSourceFiles dirs modules = flip mapM modules $ \m -> fmap ((,) m) $
 
 -- | The directory where we put build results for an executable
 exeBuildDir :: LocalBuildInfo -> Executable -> FilePath
-exeBuildDir lbi exe = buildDir lbi </> exeName exe </> exeName exe ++ "-tmp"
+exeBuildDir lbi exe = buildDir lbi </> unUnqualComponentName (exeName exe) </> unUnqualComponentName (exeName exe) ++ "-tmp"
 
 ---------------------------------------------------------------------------------------------
 
@@ -726,7 +726,7 @@ regenerateHaddockIndex
 regenerateHaddockIndex verbosity conf dest paths = do
       (confHaddock, _, _) <-
           requireProgramVersion verbosity haddockProgram
-                                    (orLaterVersion (Version [0,6] [])) conf
+                                    (orLaterVersion (mkVersion [0,6])) conf
 
       let flags = [ "--gen-contents"
                   , "--gen-index"
