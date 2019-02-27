@@ -44,7 +44,7 @@ module Cabal.Simple
 import Distribution.Simple.UserHooks
 import Distribution.Package --must not specify imports, since we're exporting moule.
 import Distribution.PackageDescription
-import Distribution.PackageDescription.Parse
+import Distribution.PackageDescription.Parsec
 import Distribution.Simple.Program
 import Distribution.Simple.PreProcess
 import Distribution.Simple.Setup
@@ -92,7 +92,7 @@ configureAction hooks flags args = do
                     Just descr -> return (Nothing, descr)
                     Nothing -> do
                       pdfile <- defaultPackageDesc verbosity
-                      descr  <- readPackageDescription verbosity pdfile
+                      descr  <- readGenericPackageDescription verbosity pdfile
                       return (Just pdfile, descr)
 {-
 hookedAction :: (UserHooks -> Args -> flags -> IO HookedBuildInfo)

@@ -14,7 +14,7 @@ import Data.Foldable (forM_)
 import Distribution.Simple.Compiler hiding (Flag)
 import Distribution.Package --must not specify imports, since we're exporting moule.
 import Distribution.PackageDescription
-import Distribution.PackageDescription.Parse
+import Distribution.PackageDescription.Parsec
 import Distribution.Simple.Program
 import Distribution.Simple.Setup
 import qualified Distribution.Simple.Setup as Setup
@@ -51,7 +51,7 @@ getPackageNames
   -> IO [PackageName] -- ^ package names
 getPackageNames v = mapM $ \dir -> do
   cabalFile <- either error id <$> findPackageDesc dir
-  desc <- readPackageDescription v cabalFile
+  desc <- readGenericPackageDescription v cabalFile
   let
     name = pkgName . package . packageDescription $ desc
   return name
@@ -98,7 +98,7 @@ main = do
     haddockFlags =
       defaultHaddockFlags
         { haddockDistPref = Setup.Flag shDest
-        , haddockHscolour = Setup.Flag shHyperlinkSource
+        , haddockLinkedSource = Setup.Flag shHyperlinkSource
         }
 
   -- generate docs for every package

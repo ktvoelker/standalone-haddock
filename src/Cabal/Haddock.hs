@@ -69,10 +69,9 @@ import Distribution.Simple.Build (initialBuildSteps)
 import Distribution.Simple.InstallDirs
 import Distribution.Simple.LocalBuildInfo
          ( LocalBuildInfo(..), Component(..), ComponentLocalBuildInfo(..)
-         , withAllComponentsInBuildOrder )
-import Distribution.Simple.BuildPaths ( haddockName,
-                                        autogenModulesDir,
-                                        )
+         , allLibModules, componentBuildDir, withAllComponentsInBuildOrder )
+import Distribution.Simple.BuildPaths
+         ( haddockName, autogenComponentModulesDir, autogenModulesDir, autogenPackageModulesDir )
 import Distribution.Simple.PackageIndex (dependencyClosure)
 import qualified Distribution.Simple.PackageIndex as PackageIndex
 import Distribution.InstalledPackageInfo
@@ -162,9 +161,6 @@ haddock pkg_descr lbi suffixes flags computePath = do
            && version < mkVersion [2,2]) $
          die "haddock 2.0 and 2.1 do not support the --hoogle flag."
 
-    when (flag haddockHscolour && version < mkVersion [0,8]) $
-         die "haddock --hyperlink-source requires Haddock version 0.8 or later"
-
     when isVersion2 $ do
       haddockGhcVersionStr <- rawSystemProgramStdout verbosity confHaddock
                                 ["--ghc-version"]
@@ -183,7 +179,8 @@ haddock pkg_descr lbi suffixes flags computePath = do
 
     initialBuildSteps (flag haddockDistPref) pkg_descr lbi verbosity
 
-    when (flag haddockHscolour) $ hscolour' pkg_descr lbi suffixes $
+    when (flag haddockLinkedSource && version < mkVersion [2,17]) $
+      hscolour' pkg_descr lbi suffixes $
          defaultHscolourFlags `mappend` haddockToHscolour flags
 
     libdirArgs <- getGhcLibDir  verbosity lbi isVersion2
@@ -273,7 +270,7 @@ fromFlags :: PathTemplateEnv -> HaddockFlags -> HaddockArgs
 fromFlags env flags =
     mempty {
       argHideModules = (maybe mempty (All . not) $ flagToMaybe (haddockInternal flags), mempty),
-      argLinkSource = if fromFlag (haddockHscolour flags)
+      argLinkSource = if fromFlag (haddockLinkedSource flags)
                                then Flag ("src/%{MODULE/./-}.html"
                                          ,"src/%{MODULE/./-}.html#%{NAME}"
                                          ,"src/%{MODULE/./-}.html#line-%{LINE}")
@@ -316,7 +313,7 @@ fromLibrary :: Verbosity
             -> (PackageId -> FilePath)
             -> IO HaddockArgs
 fromLibrary verbosity tmp lbi lib clbi htmlTemplate = do
-    inFiles <- map snd `fmap` getLibSourceFiles lbi lib
+    inFiles <- map snd `fmap` getLibSourceFiles verbosity lbi lib clbi
     ifaceArgs <- getInterfaces verbosity lbi clbi htmlTemplate
     let vanillaOpts = (componentGhcOptions normal lbi bi clbi (buildDir lbi)) {
                           -- Noooooooooo!!!!!111
@@ -354,7 +351,7 @@ fromExecutable :: Verbosity
                -> (PackageId -> FilePath)
                -> IO HaddockArgs
 fromExecutable verbosity tmp lbi exe clbi computePath = do
-    inFiles <- map snd `fmap` getExeSourceFiles lbi exe
+    inFiles <- map snd `fmap` getExeSourceFiles verbosity lbi exe clbi
     ifaceArgs <- getInterfaces verbosity lbi clbi computePath
     let vanillaOpts = (componentGhcOptions normal lbi bi clbi (buildDir lbi)) {
                           -- Noooooooooo!!!!!111
@@ -593,10 +590,10 @@ hscolour' pkg_descr lbi suffixes flags = do
       case comp of
         CLib lib -> do
           let outputDir = hscolourPref </> "src"
-          runHsColour hscolourProg outputDir =<< getLibSourceFiles lbi lib
+          runHsColour hscolourProg outputDir =<< getLibSourceFiles verbosity lbi lib clbi
         CExe exe | fromFlag (hscolourExecutables flags) -> do
           let outputDir = hscolourPref </> unUnqualComponentName (exeName exe) </> "src"
-          runHsColour hscolourProg outputDir =<< getExeSourceFiles lbi exe
+          runHsColour hscolourProg outputDir =<< getExeSourceFiles verbosity lbi exe clbi
         _ -> return ()
   where
     stylesheet = flagToMaybe (hscolourCSS flags)
@@ -633,39 +630,48 @@ haddockToHscolour flags =
 ----------------------------------------------------------------------------------------------
 -- TODO these should be moved elsewhere.
 
-getLibSourceFiles :: LocalBuildInfo
+getLibSourceFiles :: Verbosity
+                     -> LocalBuildInfo
                      -> Library
+                     -> ComponentLocalBuildInfo
                      -> IO [(ModuleName.ModuleName, FilePath)]
-getLibSourceFiles lbi lib = getSourceFiles searchpaths modules
+getLibSourceFiles verbosity lbi lib clbi = getSourceFiles verbosity searchpaths modules
   where
     bi               = libBuildInfo lib
-    modules          = PD.exposedModules lib ++ otherModules bi
-    searchpaths      = autogenModulesDir lbi : buildDir lbi : hsSourceDirs bi
+    modules          = allLibModules lib clbi
+    searchpaths      = componentBuildDir lbi clbi : hsSourceDirs bi ++
+                     [ autogenComponentModulesDir lbi clbi
+                     , autogenPackageModulesDir lbi ]
 
-getExeSourceFiles :: LocalBuildInfo
+getExeSourceFiles :: Verbosity
+                     -> LocalBuildInfo
                      -> Executable
+                     -> ComponentLocalBuildInfo
                      -> IO [(ModuleName.ModuleName, FilePath)]
-getExeSourceFiles lbi exe = do
-    moduleFiles <- getSourceFiles searchpaths modules
+getExeSourceFiles verbosity lbi exe clbi = do
+    moduleFiles <- getSourceFiles verbosity searchpaths modules
     srcMainPath <- findFile (hsSourceDirs bi) (modulePath exe)
     return ((ModuleName.main, srcMainPath) : moduleFiles)
   where
     bi          = buildInfo exe
     modules     = otherModules bi
-    searchpaths = autogenModulesDir lbi : exeBuildDir lbi exe : hsSourceDirs bi
+    searchpaths = autogenComponentModulesDir lbi clbi
+                : autogenPackageModulesDir lbi
+                : exeBuildDir lbi exe : hsSourceDirs bi
 
-getSourceFiles :: [FilePath]
+getSourceFiles :: Verbosity -> [FilePath]
                   -> [ModuleName.ModuleName]
                   -> IO [(ModuleName.ModuleName, FilePath)]
-getSourceFiles dirs modules = flip mapM modules $ \m -> fmap ((,) m) $
-    findFileWithExtension ["hs", "lhs"] dirs (ModuleName.toFilePath m)
+getSourceFiles verbosity dirs modules = flip traverse modules $ \m -> fmap ((,) m) $
+    findFileWithExtension ["hs", "lhs", "hsig", "lhsig"] dirs (ModuleName.toFilePath m)
       >>= maybe (notFound m) (return . normalise)
   where
     notFound module_ = die $ "can't find source for module " ++ display module_
 
 -- | The directory where we put build results for an executable
 exeBuildDir :: LocalBuildInfo -> Executable -> FilePath
-exeBuildDir lbi exe = buildDir lbi </> unUnqualComponentName (exeName exe) </> unUnqualComponentName (exeName exe) ++ "-tmp"
+exeBuildDir lbi exe = buildDir lbi </> nm </> nm ++ "-tmp"
+  where nm = unUnqualComponentName $ exeName exe
 
 ---------------------------------------------------------------------------------------------
 
@@ -692,7 +698,8 @@ instance Monoid HaddockArgs where
                 argGhcLibDir = mempty,
                 argTargets = mempty
              }
-    mappend a b = HaddockArgs {
+instance Semigroup HaddockArgs where
+    a <> b = HaddockArgs {
                 argInterfaceFile = mult argInterfaceFile,
                 argPackageName = mult argPackageName,
                 argHideModules = mult argHideModules,
@@ -714,7 +721,8 @@ instance Monoid HaddockArgs where
 
 instance Monoid Directory where
     mempty = Dir "."
-    mappend (Dir m) (Dir n) = Dir $ m </> n
+instance Semigroup Directory where
+    Dir m <> Dir n = Dir $ m </> n
 
 
 regenerateHaddockIndex
