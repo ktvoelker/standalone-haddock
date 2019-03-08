@@ -7,7 +7,6 @@ import Data.Monoid
 import qualified Data.Set as Set
 import Text.Printf
 import System.Directory
-import System.Process (readProcess)
 import System.FilePath
 import Data.Foldable (forM_)
 
@@ -24,6 +23,8 @@ import Distribution.Text
 
 data SHFlags = SHFlags
     { shPkgDbArgs       :: [String]
+    , shCompiler        :: Maybe String
+    , shDistDir         :: Maybe String
     , shHyperlinkSource :: Bool
     , shVerbosity       :: Verbosity
     , shDest            :: String
@@ -34,6 +35,8 @@ optParser :: Parser SHFlags
 optParser =
   SHFlags
     <$> many (strOption (long "package-db" <> metavar "DB-PATH" <> help "Additional package database"))
+    <*> optional (strOption (long "compiler-exe" <> metavar "EXE-PATH" <> help "Compiler binary"))
+    <*> optional (strOption (long "dist-dir" <> metavar "DIST-PATH" <> help "Dist work directory"))
     <*> switch (long "hyperlink-source" <> help "Generate source links in documentation")
     <*> option ( auto >>= maybe (readerError "Bad verbosity") return . intToVerbosity )
       (  long "verbosity"
@@ -84,16 +87,15 @@ main = do
 
   pkgNames <- getPackageNames shVerbosity shPkgDirs
 
-  stackPaths <- readProcess "stack" ["path", "--compiler-exe", "--dist-dir"] []
-
   let
-    [compilerExe, distDir] = map (last . words) (lines stackPaths)
-    configFlags =
+    defaultFlags =
       (defaultConfigFlags defaultProgramConfiguration)
+    configFlags =
+      defaultFlags
         { configPackageDBs = map (Just . SpecificPackageDB) (shPkgDbArgs)
         , configVerbosity = Setup.Flag shVerbosity
-        , configDistPref = Setup.Flag distDir
-        , configHcPath = Setup.Flag compilerExe
+        , configDistPref = maybe (configDistPref defaultFlags) Setup.Flag shDistDir
+        , configHcPath = maybe (configHcPath defaultFlags) Setup.Flag shCompiler
         }
     haddockFlags =
       defaultHaddockFlags
