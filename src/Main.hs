@@ -92,7 +92,7 @@ main = do
       (defaultConfigFlags defaultProgramConfiguration)
     configFlags =
       defaultFlags
-        { configPackageDBs = map (Just . SpecificPackageDB) (shPkgDbArgs)
+        { configPackageDBs = map (Just . SpecificPackageDB) shPkgDbArgs
         , configVerbosity = Setup.Flag shVerbosity
         , configDistPref = maybe (configDistPref defaultFlags) Setup.Flag shDistDir
         , configHcPath = maybe (configHcPath defaultFlags) Setup.Flag shCompiler
