@@ -1,14 +1,6 @@
 standalone-haddock
 ==================
 
-**EDIT**: This fork is modified to run using `stack`. To use, go to the directory of your package and enter:
-
-```shell
-standalone-haddock -o docs --package-db=$(stack path --snapshot-pkg-db) --package-db=$(stack path --local-pkg-db) .
-```
-
----
-
 standalone-haddock generates standalone haddock Haskell documentation.
 
 Note: you need this program to publish haddocks on your own website. If you want
@@ -67,3 +59,15 @@ database:
     standalone-haddock -o doc --package-db $HOME/.ghc/i386-linux-7.6.3/package.conf.d pkg1 pkg2
 
 (replace `i386-linux-7.6.3` with your platform id).
+
+### Stack
+
+To use with `stack`, go to the directory of your package and enter:
+
+```sh
+standalone-haddock -o docs \
+  --compiler-exe=$(stack path --compiler-exe) \
+  --dist-dir=$(stack path --dist-dir) \
+  --package-db=$(stack path --snapshot-pkg-db) \
+  --package-db=$(stack path --local-pkg-db) .
+```
