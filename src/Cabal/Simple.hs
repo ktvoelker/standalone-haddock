@@ -44,55 +44,55 @@ module Cabal.Simple
 import Distribution.Simple.UserHooks
 import Distribution.Package --must not specify imports, since we're exporting moule.
 import Distribution.PackageDescription
-import Distribution.PackageDescription.Parse
+import Distribution.PackageDescription.Parsec
 import Distribution.Simple.Program
 import Distribution.Simple.PreProcess
 import Distribution.Simple.Setup
 import Distribution.Simple.Configure
 import Distribution.Simple.LocalBuildInfo
 import Distribution.Simple.Utils
+import Distribution.Verbosity
 
 -- our version of haddock launcher
 import Cabal.Haddock
 
 configureAction :: UserHooks -> ConfigFlags -> Args -> IO LocalBuildInfo
 configureAction hooks flags args = do
-                let distPref = fromFlag $ configDistPref flags
-                pbi <- preConf hooks args flags
+    distPref <- findDistPrefOrDefault (configDistPref flags)
+    let flags' = flags { configDistPref = toFlag distPref
+                       , configArgs = args }
 
-                (mb_pd_file, pkg_descr0) <- confPkgDescr
+    -- See docs for 'HookedBuildInfo'
+    pbi <- preConf hooks args flags'
 
-                --    get_pkg_descr (configVerbosity flags')
-                --let pkg_descr = updatePackageDescription pbi pkg_descr0
-                let epkg_descr = (pkg_descr0, pbi)
+    (mb_pd_file, pkg_descr0) <- confPkgDescr
 
-                --(warns, ers) <- sanityCheckPackage pkg_descr
-                --errorOut (configVerbosity flags') warns ers
+    let epkg_descr = (pkg_descr0, pbi)
 
-                localbuildinfo0 <- confHook hooks epkg_descr flags
+    localbuildinfo0 <- confHook hooks epkg_descr flags'
 
-                -- remember the .cabal filename if we know it
-                -- and all the extra command line args
-                let localbuildinfo = localbuildinfo0 {
-                                       pkgDescrFile = mb_pd_file,
-                                       extraConfigArgs = args
-                                     }
-                writePersistBuildConfig distPref localbuildinfo
+    -- remember the .cabal filename if we know it
+    -- and all the extra command line args
+    let localbuildinfo = localbuildinfo0 {
+                           pkgDescrFile = mb_pd_file,
+                           extraConfigArgs = args
+                         }
+    writePersistBuildConfig distPref localbuildinfo
 
-                let pkg_descr = localPkgDescr localbuildinfo
-                postConf hooks args flags pkg_descr localbuildinfo
-                return localbuildinfo
-              where
-                verbosity = fromFlag (configVerbosity flags)
-                confPkgDescr :: IO (Maybe FilePath, GenericPackageDescription)
-                confPkgDescr = do
-                  mdescr <- readDesc hooks
-                  case mdescr of
-                    Just descr -> return (Nothing, descr)
-                    Nothing -> do
-                      pdfile <- defaultPackageDesc verbosity
-                      descr  <- readPackageDescription verbosity pdfile
-                      return (Just pdfile, descr)
+    let pkg_descr = localPkgDescr localbuildinfo
+    postConf hooks args flags' pkg_descr localbuildinfo
+    return localbuildinfo
+  where
+    verbosity = fromFlagOrDefault normal (configVerbosity flags)
+    confPkgDescr :: IO (Maybe FilePath, GenericPackageDescription)
+    confPkgDescr = do
+      mdescr <- readDesc hooks
+      case mdescr of
+        Just descr -> return (Nothing, descr)
+        Nothing -> do
+          pdfile <- defaultPackageDesc verbosity
+          descr  <- readGenericPackageDescription verbosity pdfile
+          return (Just pdfile, descr)
 {-
 hookedAction :: (UserHooks -> Args -> flags -> IO HookedBuildInfo)
         -> (UserHooks -> PackageDescription -> LocalBuildInfo
@@ -143,7 +143,7 @@ sanityCheckHookedBuildInfo _ _ = return ()
 haddockAction :: LocalBuildInfo -> UserHooks -> HaddockFlags -> Args -> (PackageId -> FilePath) -> IO ()
 haddockAction lbi _hooks flags _args computePath = do
   -- let distPref  = fromFlag $ haddockDistPref flags
-  let verbosity = fromFlag $ haddockVerbosity flags
+  let verbosity = fromFlagOrDefault normal $ haddockVerbosity flags
 
   _progs <- reconfigurePrograms verbosity
              (haddockProgramPaths flags)
