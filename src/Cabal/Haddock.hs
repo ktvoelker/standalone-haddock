@@ -52,7 +52,7 @@ import Distribution.Package
 import qualified Distribution.ModuleName as ModuleName
 import Distribution.PackageDescription as PD
          ( PackageDescription(..), BuildInfo(..), allExtensions
-         , Library(..), hasLibs, Executable(..) )
+         , Library(..), hasLibs, Executable(..), specVersion )
 import Distribution.Simple.Compiler
          ( Compiler(..), CompilerFlavor(GHC), compilerInfo, compilerVersion )
 import Distribution.Simple.GHC ( componentGhcOptions, getLibDir )
@@ -79,15 +79,16 @@ import Distribution.InstalledPackageInfo
 import Distribution.Simple.Utils
          ( die, copyFileTo, warn, notice, intercalate, setupMessage
          , createDirectoryIfMissingVerbose, withTempFileEx, copyFileVerbose
-         , withTempDirectoryEx, matchFileGlob
+         , withTempDirectoryEx
          , findFileWithExtension, findFile
          , TempFileOptions(..), defaultTempFileOptions )
+import Distribution.Simple.Glob ( matchDirFileGlob )
 import Distribution.System (buildPlatform)
 import Distribution.Text
          ( display, simpleParse )
 import Distribution.Types.UnqualComponentName
 import Distribution.Utils.NubList
-         ( NubListR(), toNubListR )
+         ( NubListR(), toNubListR, fromNubListR )
 
 import Distribution.Verbosity
 import Language.Haskell.Extension
@@ -213,7 +214,7 @@ haddock pkg_descr lbi suffixes flags computePath = do
         _ -> return ()
 
     forM_ (extraDocFiles pkg_descr) $ \ fpath -> do
-      files <- matchFileGlob fpath
+      files <- matchDirFileGlob verbosity (specVersion pkg_descr) "." fpath
       forM_ files $ copyFileTo verbosity (unDir $ argOutputDir commonArgs)
   where
     verbosity     = flag haddockVerbosity
@@ -329,7 +330,7 @@ fromLibrary verbosity tmp lbi lib clbi htmlTemplate = do
                          ghcOptFPic        = toFlag True,
                          ghcOptHiSuffix    = toFlag "dyn_hi",
                          ghcOptObjSuffix   = toFlag "dyn_o",
-                         ghcOptExtra       = ghcSharedOptions bi
+                         ghcOptExtra       = fromNubListR $ ghcSharedOptions bi
                      }
     opts <- if withVanillaLib lbi
             then return vanillaOpts
@@ -367,7 +368,7 @@ fromExecutable verbosity tmp lbi exe clbi computePath = do
                          ghcOptFPic        = toFlag True,
                          ghcOptHiSuffix    = toFlag "dyn_hi",
                          ghcOptObjSuffix   = toFlag "dyn_o",
-                         ghcOptExtra       = ghcSharedOptions bi
+                         ghcOptExtra       = fromNubListR $ ghcSharedOptions bi
                      }
     opts <- if withVanillaLib lbi
             then return vanillaOpts
