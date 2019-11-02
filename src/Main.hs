@@ -3,7 +3,6 @@
 import Options.Applicative
 import Cabal.Simple
 import Cabal.Haddock
-import Data.Monoid
 import qualified Data.Set as Set
 import Text.Printf
 import System.Directory
@@ -89,7 +88,7 @@ main = do
 
   let
     defaultFlags =
-      (defaultConfigFlags defaultProgramConfiguration)
+      (defaultConfigFlags defaultProgramDb)
     configFlags =
       defaultFlags
         { configPackageDBs = map (Just . SpecificPackageDB) shPkgDbArgs
@@ -111,7 +110,7 @@ main = do
     haddockAction lbi simpleUserHooks haddockFlags [] (computePath pkgNames)
 
   -- generate documentation index
-  regenerateHaddockIndex normal defaultProgramConfiguration shDest
+  regenerateHaddockIndex normal defaultProgramDb shDest
     [(iface, html)
     | pkg <- pkgNames
     , let pkgStr = display pkg
