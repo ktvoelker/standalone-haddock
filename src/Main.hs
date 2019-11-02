@@ -13,6 +13,7 @@ import Distribution.Simple.Compiler hiding (Flag)
 import Distribution.Package --must not specify imports, since we're exporting moule.
 import Distribution.PackageDescription
 import Distribution.PackageDescription.Parsec
+import Distribution.Simple.LocalBuildInfo (withPrograms)
 import Distribution.Simple.Program
 import Distribution.Simple.Setup
 import qualified Distribution.Simple.Setup as Setup
@@ -102,15 +103,16 @@ main = do
         , haddockLinkedSource = Setup.Flag shHyperlinkSource
         }
 
+  lbi <- configureAction simpleUserHooks configFlags []
+
   -- generate docs for every package
   forM_ shPkgDirs $ \dir -> do
     setCurrentDirectory dir
 
-    lbi <- configureAction simpleUserHooks configFlags []
     haddockAction lbi simpleUserHooks haddockFlags [] (computePath pkgNames)
 
   -- generate documentation index
-  regenerateHaddockIndex normal defaultProgramDb shDest
+  regenerateHaddockIndex normal (withPrograms lbi) shDest
     [(iface, html)
     | pkg <- pkgNames
     , let pkgStr = display pkg
