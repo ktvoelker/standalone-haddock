@@ -112,7 +112,7 @@ data HaddockArgs = HaddockArgs {
  argPackageName :: Flag PackageIdentifier,        -- ^ package name,                                         required.
  argHideModules :: (All,[ModuleName.ModuleName]), -- ^ (hide modules ?, modules to hide)
  argIgnoreExports :: Any,                         -- ^ ignore export lists in modules?
- argLinkSource :: Flag (Template,Template,Template), -- ^ (template for modules, template for symbols, template for lines)
+ argLinkSource :: Any,                            -- ^ use hyperlinked-source?
  argCssFile :: Flag FilePath,                     -- ^ optional custom CSS file.
  argContents :: Flag String,                      -- ^ optional URL to contents page
  argVerbose :: Any,
@@ -131,8 +131,6 @@ newtype Directory = Dir { unDir' :: FilePath } deriving (Read,Show,Eq,Ord)
 
 unDir :: Directory -> FilePath
 unDir = joinPath . filter (\p -> p /="./" && p /= ".") . splitPath . unDir'
-
-type Template = String
 
 data Output = Html | Hoogle
 
@@ -161,6 +159,10 @@ haddock pkg_descr lbi suffixes flags computePath = do
            && version > mkVersion [2]
            && version < mkVersion [2,2]) $
          die "haddock 2.0 and 2.1 do not support the --hoogle flag."
+
+    when ( flag haddockLinkedSource
+           && version < mkVersion [2, 16, 2]) $
+         die "haddock does not support --hyperlinked-source before 2.16.2"
 
     when isVersion2 $ do
       haddockGhcVersionStr <- rawSystemProgramStdout verbosity confHaddock
@@ -271,11 +273,7 @@ fromFlags :: PathTemplateEnv -> HaddockFlags -> HaddockArgs
 fromFlags env flags =
     mempty {
       argHideModules = (maybe mempty (All . not) $ flagToMaybe (haddockInternal flags), mempty),
-      argLinkSource = if fromFlag (haddockLinkedSource flags)
-                               then Flag ("src/%{MODULE/./-}.html"
-                                         ,"src/%{MODULE/./-}.html#%{NAME}"
-                                         ,"src/%{MODULE/./-}.html#line-%{LINE}")
-                               else NoFlag,
+      argLinkSource = maybe mempty Any $ flagToMaybe $ haddockLinkedSource flags,
       argCssFile = haddockCss flags,
       argContents = fmap (fromPathTemplate . substPathTemplate env) (haddockContents flags),
       argVerbose = maybe mempty (Any . (>= deafening)) . flagToMaybe $ haddockVerbosity flags,
@@ -469,11 +467,7 @@ renderPureArgs version comp args = concat
                   else ["--package=" ++ pname]) . display . fromFlag . argPackageName $ args,
      (\(All b,xs) -> bool (map (("--hide=" ++). display) xs) [] b) . argHideModules $ args,
      bool ["--ignore-all-exports"] [] . getAny . argIgnoreExports $ args,
-     maybe [] (\(m,e,l) -> ["--source-module=" ++ m
-                           ,"--source-entity=" ++ e]
-                           ++ if isVersion2_14 then ["--source-entity-line=" ++ l]
-                                               else []
-              ) . flagToMaybe . argLinkSource $ args,
+     bool ["--hyperlinked-source"] [] . getAny . argLinkSource $ args,
      maybe [] ((:[]).("--css="++)) . flagToMaybe . argCssFile $ args,
      maybe [] ((:[]).("--use-contents="++)) . flagToMaybe . argContents $ args,
      bool [] [verbosityFlag] . getAny . argVerbose $ args,
@@ -495,7 +489,6 @@ renderPureArgs version comp args = concat
       bool a b c = if c then a else b
       isVersion2    = version >= mkVersion [2,0]
       isVersion2_5  = version >= mkVersion [2,5]
-      isVersion2_14 = version >= mkVersion [2,14]
       verbosityFlag
        | isVersion2_5 = "--verbosity=1"
        | otherwise = "--verbose"
