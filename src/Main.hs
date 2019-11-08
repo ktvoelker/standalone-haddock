@@ -69,7 +69,7 @@ computePath names =
     then
       ".." </> (display $ pkgName pkgId)
     else
-      printf "http://hackage.haskell.org/packages/archive/%s/%s/doc/html"
+      printf "http://hackage.haskell.org/package/%s-%s/docs"
         (display $ pkgName pkgId)
         (display $ pkgVersion pkgId)
 
