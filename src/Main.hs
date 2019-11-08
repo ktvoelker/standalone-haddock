@@ -103,15 +103,15 @@ main = do
         , haddockLinkedSource = Setup.Flag shHyperlinkSource
         }
 
-  lbi <- configureAction simpleUserHooks configFlags []
 
   -- generate docs for every package
   forM_ shPkgDirs $ \dir -> do
     setCurrentDirectory dir
-
+    lbi <- configureAction simpleUserHooks configFlags []
     haddockAction lbi simpleUserHooks haddockFlags [] (computePath pkgNames)
 
   -- generate documentation index
+  lbi <- configureAction simpleUserHooks configFlags []
   regenerateHaddockIndex normal (withPrograms lbi) shDest
     [(iface, html)
     | pkg <- pkgNames
