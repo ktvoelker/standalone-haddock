@@ -48,7 +48,7 @@ module Cabal.Haddock
 import Distribution.Package
          ( PackageIdentifier(..)
          , Package(..)
-         , PackageName(..), mkPackageName, packageName, mkLegacyUnitId, PackageId )
+         , mkPackageName, packageName, mkLegacyUnitId, PackageId )
 import qualified Distribution.ModuleName as ModuleName
 import Distribution.PackageDescription as PD
          ( PackageDescription(..), BuildInfo(..), allExtensions
@@ -71,13 +71,13 @@ import Distribution.Simple.LocalBuildInfo
          ( LocalBuildInfo(..), Component(..), ComponentLocalBuildInfo(..)
          , allLibModules, componentBuildDir, withAllComponentsInBuildOrder )
 import Distribution.Simple.BuildPaths
-         ( haddockName, autogenComponentModulesDir, autogenModulesDir, autogenPackageModulesDir )
+         ( haddockName, autogenComponentModulesDir, autogenPackageModulesDir )
 import Distribution.Simple.PackageIndex (dependencyClosure)
 import qualified Distribution.Simple.PackageIndex as PackageIndex
 import Distribution.InstalledPackageInfo
          ( InstalledPackageInfo, haddockInterfaces, sourcePackageId )
 import Distribution.Simple.Utils
-         ( die, copyFileTo, warn, notice, intercalate, setupMessage
+         ( die', copyFileTo, warn, notice, intercalate, setupMessage
          , createDirectoryIfMissingVerbose, withTempFileEx, copyFileVerbose
          , withTempDirectoryEx
          , findFileWithExtension, findFile
@@ -158,20 +158,20 @@ haddock pkg_descr lbi suffixes flags computePath = do
     when ( flag haddockHoogle
            && version > mkVersion [2]
            && version < mkVersion [2,2]) $
-         die "haddock 2.0 and 2.1 do not support the --hoogle flag."
+         die' verbosity "haddock 2.0 and 2.1 do not support the --hoogle flag."
 
     when ( flag haddockLinkedSource
            && version < mkVersion [2, 16, 2]) $
-         die "haddock does not support --hyperlinked-source before 2.16.2"
+         die' verbosity "haddock does not support --hyperlinked-source before 2.16.2"
 
     when isVersion2 $ do
-      haddockGhcVersionStr <- rawSystemProgramStdout verbosity confHaddock
+      haddockGhcVersionStr <- getProgramOutput verbosity confHaddock
                                 ["--ghc-version"]
       case simpleParse haddockGhcVersionStr of
-        Nothing -> die "Could not get GHC version from Haddock"
+        Nothing -> die' verbosity "Could not get GHC version from Haddock"
         Just haddockGhcVersion
           | haddockGhcVersion == ghcVersion -> return ()
-          | otherwise -> die $
+          | otherwise -> die' verbosity $
                  "Haddock's internal GHC version must match the configured "
               ++ "GHC version.\n"
               ++ "The GHC version is " ++ display ghcVersion ++ " but "
@@ -334,7 +334,7 @@ fromLibrary verbosity tmp lbi lib clbi htmlTemplate = do
             then return vanillaOpts
             else if withSharedLib lbi
             then return sharedOpts
-            else die "Must have vanilla or shared libraries enabled in order to run haddock"
+            else die' verbosity "Must have vanilla or shared libraries enabled in order to run haddock"
     return ifaceArgs {
       argHideModules = (mempty,otherModules $ bi),
       argGhcOptions  = toFlag (opts, ghcVersion),
@@ -372,7 +372,7 @@ fromExecutable verbosity tmp lbi exe clbi computePath = do
             then return vanillaOpts
             else if withSharedLib lbi
             then return sharedOpts
-            else die "Must have vanilla or shared libraries enabled in order to run haddock"
+            else die' verbosity "Must have vanilla or shared libraries enabled in order to run haddock"
     return ifaceArgs {
       argGhcOptions = toFlag (opts, ghcVersion),
       argOutputDir  = Dir (unUnqualComponentName $ exeName exe),
@@ -389,7 +389,7 @@ getInterfaces :: Verbosity
               -> (PackageId -> FilePath)
               -> IO HaddockArgs
 getInterfaces verbosity lbi clbi computePath = do
-    (packageFlags, warnings) <- haddockPackageFlags lbi clbi computePath
+    (packageFlags, warnings) <- haddockPackageFlags verbosity lbi clbi computePath
     maybe (return ()) (warn verbosity) warnings
     return $ mempty {
                  argInterfaces = packageFlags
@@ -421,7 +421,7 @@ runHaddock verbosity tmpFileOpts comp confHaddock args = do
   renderArgs verbosity tmpFileOpts haddockVersion comp args $
     \(flags,result)-> do
 
-      rawSystemProgram verbosity confHaddock flags
+      runProgram verbosity confHaddock flags
 
       notice verbosity $ "Documentation created: " ++ result
 
@@ -496,16 +496,17 @@ renderPureArgs version comp args = concat
 
 -----------------------------------------------------------------------------------------------------------
 
-haddockPackageFlags :: LocalBuildInfo
+haddockPackageFlags :: Verbosity
+                    -> LocalBuildInfo
                     -> ComponentLocalBuildInfo
                     -> (PackageId -> FilePath)
                     -> IO ([(FilePath,Maybe FilePath)], Maybe String)
-haddockPackageFlags lbi clbi computePath = do
+haddockPackageFlags verbosity lbi clbi computePath = do
   let allPkgs = installedPkgs lbi
       directDeps = map fst (componentPackageDeps clbi)
   transitiveDeps <- case dependencyClosure allPkgs directDeps of
     Left x    -> return x
-    Right inf -> die $ "internal error when calculating transative "
+    Right inf -> die' verbosity $ "internal error when calculating transative "
                     ++ "package dependencies.\nDebug info: " ++ show inf
   interfaces <- sequence
     [ case interfaceAndHtmlPath ipkg of
@@ -599,13 +600,13 @@ hscolour' pkg_descr lbi suffixes flags = do
 
          case stylesheet of -- copy the CSS file
            Nothing | programVersion prog >= Just (mkVersion [1,9]) ->
-                       rawSystemProgram verbosity prog
+                       runProgram verbosity prog
                           ["-print-css", "-o" ++ outputDir </> "hscolour.css"]
                    | otherwise -> return ()
            Just s -> copyFileVerbose verbosity s (outputDir </> "hscolour.css")
 
          forM_ moduleFiles $ \(m, inFile) ->
-             rawSystemProgram verbosity prog
+             runProgram verbosity prog
                     ["-css", "-anchor", "-o" ++ outFile m, inFile]
         where
           outFile m = outputDir </> intercalate "-" (ModuleName.components m) <.> "html"
@@ -617,8 +618,10 @@ haddockToHscolour flags =
       hscolourExecutables = haddockExecutables flags,
       hscolourTestSuites  = haddockTestSuites  flags,
       hscolourBenchmarks  = haddockBenchmarks  flags,
+      hscolourForeignLibs = haddockForeignLibs flags,
       hscolourVerbosity   = haddockVerbosity   flags,
-      hscolourDistPref    = haddockDistPref    flags
+      hscolourDistPref    = haddockDistPref    flags,
+      hscolourCabalFilePath = haddockCabalFilePath flags
     }
 
 ----------------------------------------------------------------------------------------------
@@ -660,7 +663,7 @@ getSourceFiles verbosity dirs modules = flip traverse modules $ \m -> fmap ((,) 
     findFileWithExtension ["hs", "lhs", "hsig", "lhsig"] dirs (ModuleName.toFilePath m)
       >>= maybe (notFound m) (return . normalise)
   where
-    notFound module_ = die $ "can't find source for module " ++ display module_
+    notFound module_ = die' verbosity $ "can't find source for module " ++ display module_
 
 -- | The directory where we put build results for an executable
 exeBuildDir :: LocalBuildInfo -> Executable -> FilePath
@@ -721,7 +724,7 @@ instance Semigroup Directory where
 
 regenerateHaddockIndex
   :: Verbosity
-  -> ProgramConfiguration
+  -> ProgramDb
   -> FilePath -- ^ dest dir
   -> [(FilePath, FilePath)] -- ^ [(interface, html)]
   -> IO ()
@@ -736,7 +739,7 @@ regenerateHaddockIndex verbosity conf dest paths = do
                   , "--title=Standalone Haskell documentation" ]
                ++ [ "--read-interface=" ++ mkUrl html ++ "," ++ interface
                   | (interface, html) <- paths ]
-      rawSystemProgram verbosity confHaddock flags
+      runProgram verbosity confHaddock flags
 
 
 -- See https://github.com/haskell/cabal/issues/1064
