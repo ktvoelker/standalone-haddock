@@ -1,5 +1,5 @@
 name:                standalone-haddock
-version:             1.3.0.0
+version:             1.4.0.0
 synopsis:            Generate standalone haddock documentation for a set of packages
 homepage:            https://documentup.com/ktvoelker/standalone-haddock
 bug-reports:         https://github.com/ktvoelker/standalone-haddock/issues
