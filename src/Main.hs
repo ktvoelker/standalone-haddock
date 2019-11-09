@@ -3,7 +3,6 @@
 import Options.Applicative
 import Cabal.Simple
 import Cabal.Haddock
-import Data.Monoid
 import qualified Data.Set as Set
 import Text.Printf
 import System.Directory
@@ -14,6 +13,7 @@ import Distribution.Simple.Compiler hiding (Flag)
 import Distribution.Package --must not specify imports, since we're exporting moule.
 import Distribution.PackageDescription
 import Distribution.PackageDescription.Parsec
+import Distribution.Simple.LocalBuildInfo (withPrograms)
 import Distribution.Simple.Program
 import Distribution.Simple.Setup
 import qualified Distribution.Simple.Setup as Setup
@@ -89,7 +89,7 @@ main = do
 
   let
     defaultFlags =
-      (defaultConfigFlags defaultProgramConfiguration)
+      (defaultConfigFlags defaultProgramDb)
     configFlags =
       defaultFlags
         { configPackageDBs = map (Just . SpecificPackageDB) shPkgDbArgs
@@ -111,7 +111,8 @@ main = do
     haddockAction lbi simpleUserHooks haddockFlags [] (computePath pkgNames)
 
   -- generate documentation index
-  regenerateHaddockIndex normal defaultProgramConfiguration shDest
+  lbi <- configureAction simpleUserHooks configFlags []
+  regenerateHaddockIndex normal (withPrograms lbi) shDest
     [(iface, html)
     | pkg <- pkgNames
     , let pkgStr = display pkg
