@@ -113,6 +113,7 @@ data HaddockArgs = HaddockArgs {
  argHideModules :: (All,[ModuleName.ModuleName]), -- ^ (hide modules ?, modules to hide)
  argIgnoreExports :: Any,                         -- ^ ignore export lists in modules?
  argLinkSource :: Any,                            -- ^ use hyperlinked-source?
+ argQuickJump :: Any,                             -- ^ use quickjump?
  argCssFile :: Flag FilePath,                     -- ^ optional custom CSS file.
  argContents :: Flag String,                      -- ^ optional URL to contents page
  argVerbose :: Any,
@@ -163,6 +164,10 @@ haddock pkg_descr lbi suffixes flags computePath = do
     when ( flag haddockLinkedSource
            && version < mkVersion [2, 16, 2]) $
          die' verbosity "haddock does not support --hyperlinked-source before 2.16.2"
+
+    when ( flag haddockQuickJump
+           && version < mkVersion [2, 19]) $
+         die' verbosity "haddock does not support --quickjump before 2.19"
 
     when isVersion2 $ do
       haddockGhcVersionStr <- getProgramOutput verbosity confHaddock
@@ -274,6 +279,7 @@ fromFlags env flags =
     mempty {
       argHideModules = (maybe mempty (All . not) $ flagToMaybe (haddockInternal flags), mempty),
       argLinkSource = maybe mempty Any $ flagToMaybe $ haddockLinkedSource flags,
+      argQuickJump = maybe mempty Any $ flagToMaybe $ haddockQuickJump flags,
       argCssFile = haddockCss flags,
       argContents = fmap (fromPathTemplate . substPathTemplate env) (haddockContents flags),
       argVerbose = maybe mempty (Any . (>= deafening)) . flagToMaybe $ haddockVerbosity flags,
@@ -468,6 +474,7 @@ renderPureArgs version comp args = concat
      (\(All b,xs) -> bool (map (("--hide=" ++). display) xs) [] b) . argHideModules $ args,
      bool ["--ignore-all-exports"] [] . getAny . argIgnoreExports $ args,
      bool ["--hyperlinked-source"] [] . getAny . argLinkSource $ args,
+     bool ["--quickjump"] [] . getAny . argQuickJump $ args,
      maybe [] ((:[]).("--css="++)) . flagToMaybe . argCssFile $ args,
      maybe [] ((:[]).("--use-contents="++)) . flagToMaybe . argContents $ args,
      bool [] [verbosityFlag] . getAny . argVerbose $ args,
@@ -683,6 +690,7 @@ instance Monoid HaddockArgs where
                 argHideModules = mempty,
                 argIgnoreExports = mempty,
                 argLinkSource = mempty,
+                argQuickJump = mempty,
                 argCssFile = mempty,
                 argContents = mempty,
                 argVerbose = mempty,
@@ -702,6 +710,7 @@ instance Semigroup HaddockArgs where
                 argHideModules = mult argHideModules,
                 argIgnoreExports = mult argIgnoreExports,
                 argLinkSource = mult argLinkSource,
+                argQuickJump = mult argQuickJump,
                 argCssFile = mult argCssFile,
                 argContents = mult argContents,
                 argVerbose = mult argVerbose,
@@ -726,9 +735,10 @@ regenerateHaddockIndex
   :: Verbosity
   -> ProgramDb
   -> FilePath -- ^ dest dir
+  -> Bool -- ^ With quickjump?
   -> [(FilePath, FilePath)] -- ^ [(interface, html)]
   -> IO ()
-regenerateHaddockIndex verbosity conf dest paths = do
+regenerateHaddockIndex verbosity conf dest withQuickJump paths = do
       (confHaddock, _, _) <-
           requireProgramVersion verbosity haddockProgram
                                     (orLaterVersion (mkVersion [0,6])) conf
@@ -739,8 +749,19 @@ regenerateHaddockIndex verbosity conf dest paths = do
                   , "--title=Standalone Haskell documentation" ]
                ++ [ "--read-interface=" ++ mkUrl html ++ "," ++ interface
                   | (interface, html) <- paths ]
+               ++ [ "--quickjump" | withQuickJump ] -- See Note [Quick Jump]
       runProgram verbosity confHaddock flags
 
+{- Note [Quick Jump]
+~~~~~~~~~~~~~~~~~~~~
+
+Currently, Haddock always creates a 'Quick Jump' button, regardless of whether
+its '--quickjump' option is set (see https://github.com/haskell/haddock/issues/783).
+
+Also, it appears that a 'doc-index.json' file is not created from interfaces in
+the same way that '--gen-contents' and '--gen-index' generate a contents and
+index. Currently, this '--quickjump' option has no effect.
+-}
 
 -- See https://github.com/haskell/cabal/issues/1064
 mkUrl :: String -> String

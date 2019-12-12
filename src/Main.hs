@@ -26,6 +26,7 @@ data SHFlags = SHFlags
     , shCompiler        :: Maybe String
     , shDistDir         :: Maybe String
     , shHyperlinkSource :: Bool
+    , shQuickJump       :: Bool
     , shVerbosity       :: Verbosity
     , shDest            :: String
     , shPkgDirs         :: [String]
@@ -38,6 +39,7 @@ optParser =
     <*> optional (strOption (long "compiler-exe" <> metavar "EXE-PATH" <> help "Compiler binary"))
     <*> optional (strOption (long "dist-dir" <> metavar "DIST-PATH" <> help "Dist work directory"))
     <*> switch (long "hyperlink-source" <> help "Generate source links in documentation")
+    <*> switch (long "quickjump" <> help "Generate an index for interactive documentation navigation")
     <*> option ( auto >>= maybe (readerError "Bad verbosity") return . intToVerbosity )
       (  long "verbosity"
       <> short 'v'
@@ -101,6 +103,7 @@ main = do
       defaultHaddockFlags
         { haddockDistPref = Setup.Flag shDest
         , haddockLinkedSource = Setup.Flag shHyperlinkSource
+        , haddockQuickJump = Setup.Flag shQuickJump
         }
 
   -- generate docs for every package
@@ -112,7 +115,7 @@ main = do
 
   -- generate documentation index
   lbi <- configureAction simpleUserHooks configFlags []
-  regenerateHaddockIndex normal (withPrograms lbi) shDest
+  regenerateHaddockIndex normal (withPrograms lbi) shDest shQuickJump
     [(iface, html)
     | pkg <- pkgNames
     , let pkgStr = display pkg
