@@ -112,7 +112,7 @@ main = do
 
   -- generate documentation index
   lbi <- configureAction simpleUserHooks configFlags []
-  regenerateHaddockIndex normal (withPrograms lbi) shDest
+  regenerateHaddockIndex shVerbosity (withPrograms lbi) shDest
     [(iface, html)
     | pkg <- pkgNames
     , let pkgStr = display pkg
