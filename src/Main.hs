@@ -115,7 +115,7 @@ main = do
 
   -- generate documentation index
   lbi <- configureAction simpleUserHooks configFlags []
-  regenerateHaddockIndex normal (withPrograms lbi) shDest shQuickJump
+  regenerateHaddockIndex shVerbosity (withPrograms lbi) shDest shQuickJump
     [(iface, html)
     | pkg <- pkgNames
     , let pkgStr = display pkg
