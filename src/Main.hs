@@ -30,6 +30,7 @@ data SHFlags = SHFlags
     , shVerbosity       :: Verbosity
     , shDest            :: String
     , shPkgDirs         :: [String]
+    , shCss             :: Maybe FilePath
     }
 
 optParser :: Parser SHFlags
@@ -49,6 +50,7 @@ optParser =
         )
     <*> strOption (short 'o' <> metavar "OUTPUT-PATH" <> help "Directory where html files will be placed")
     <*> many (argument str (metavar "PACKAGE-PATH"))
+    <*> optional (strOption (long "theme" <> metavar "THEME" <> help "Supply custom Haddock style materials"))
 
 getPackageNames
   :: Verbosity
@@ -104,6 +106,7 @@ main = do
         { haddockDistPref = Setup.Flag shDest
         , haddockLinkedSource = Setup.Flag shHyperlinkSource
         , haddockQuickJump = Setup.Flag shQuickJump
+        , haddockCss = Setup.maybeToFlag shCss
         }
 
   -- generate docs for every package
