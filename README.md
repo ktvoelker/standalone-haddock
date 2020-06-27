@@ -1,6 +1,10 @@
 standalone-haddock
 ==================
 
+> :rocket: **New maintainer wanted!** It's not much work, but I don't use this software very
+> often. I think a regular user would make a better maintainer. Please email karl@karlv.net
+> if you are interested.
+
 standalone-haddock generates standalone haddock Haskell documentation.
 
 Note: you need this program to publish haddocks on your own website. If you want
